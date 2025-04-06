@@ -292,3 +292,130 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_K, 1.0f);
  * @group Multicopter Rate Control
  */
 PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
+
+/**
+ * Enable L1 adaptive controller for mc
+ *
+ *
+ *
+ * @boolean
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_INT32(MC_L1_ADAPTIVE_EN, 0);
+
+/**
+ * As_v
+ *
+ * For L1 adaptvie controller, user selected diagonal Hurwitz matrix diagonal element for velocity
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_AS_V, 0.0f);
+
+/**
+ * As_omega
+ *
+ * For L1 adaptvie controller, user selected diagonal Hurwitz matrix diagonal element for angular velocity
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_AS_OMEGA, 0.0f);
+
+/**
+ * mass
+ *
+ * For L1 adaptvie controller, uav mass
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_MASS, 0.0f);
+
+/**
+ *
+ * inertia x element
+ *
+ * For L1 adaptvie controller, uav inertia x element
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_INERTIA_X, 0.0f);
+
+/**
+ *
+ * inertia y element
+ *
+ * For L1 adaptvie controller, uav inertia y element
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_INERTIA_Y, 0.0f);
+
+/**
+ *
+ * inertia z element
+ *
+ * For L1 adaptvie controller, uav inertia z element
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_INERTIA_Z, 0.0f);
+
+
+
+/**
+ *
+ * Low pass filter 1 cutoff frequency for thrust
+ *
+ * For L1 adaptvie controller, the first low pass filter cutoff frequency for thrust
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_CUTOFF_FREQ_1_T, 0.0f);
+
+
+/**
+ *
+ * Low pass filter 1 cutoff frequency for moment
+ *
+ * For L1 adaptvie controller, the first low pass filter cutoff frequency for moment
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_CUTOFF_FREQ_1_M, 0.0f);
+
+/**
+ *
+ * Low pass filter 2 cutoff frequency for moment
+ *
+ * For L1 adaptvie controller, the second low pass filter cutoff frequency for moment
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_CUTOFF_FREQ_2_M, 0.0f);

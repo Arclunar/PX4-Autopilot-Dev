@@ -60,6 +60,12 @@
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 #include <uORB/topics/vehicle_torque_setpoint.h>
 
+// Other topics for L1 adaptive
+#include <uORB/topics/vehicle_attitude.h>
+#include <uORB/topics/vehicle_attitude_setpoint.h>
+#include <uORB/topics/vehicle_local_position.h>
+
+
 using namespace time_literals;
 
 class MulticopterRateControl : public ModuleBase<MulticopterRateControl>, public ModuleParams, public px4::WorkItem
@@ -159,6 +165,18 @@ private:
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPO>) _param_mc_acro_supexpo,		/**< superexpo stick curve shape (roll & pitch) */
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPOY>) _param_mc_acro_supexpoy,		/**< superexpo stick curve shape (yaw) */
 
-		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en
+		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en,
+
+		// L1 parameters
+		(ParamBool<px4::params::MC_L1_ADAPTIVE_EN>) _param_mc_l1_adaptive_en,
+		(ParamFloat<px4::params::MC_L1_MASS>) _param_mc_l1_mass,
+		(ParamFloat<px4::params::MC_L1_INERTIA_X>) _param_mc_l1_inertia_x,
+		(ParamFloat<px4::params::MC_L1_INERTIA_Y>) _param_mc_l1_inertia_y,
+		(ParamFloat<px4::params::MC_L1_INERTIA_Z>) _param_mc_l1_inertia_z,
+		(ParamFloat<px4::params::MC_L1_AS_V>) _param_mc_l1_as_v,
+		(ParamFloat<px4::params::MC_L1_AS_OMEGA>) _param_mc_l1_as_omega,
+		(ParamFloat<px4::params::MC_L1_CUTOFF_FREQ_1_T>) _param_mc_l1_cutoff_freq_1_t,
+		(ParamFloat<px4::params::MC_L1_CUTOFF_FREQ_1_M>) _param_mc_l1_cutoff_freq_1_m,
+		(ParamFloat<px4::params::MC_L1_CUTOFF_FREQ_2_M>) _param_mc_l1_cutoff_freq_2_m,
 	)
 };

@@ -126,6 +126,7 @@ MulticopterRateControl::Run()
 		const hrt_abstime now = angular_velocity.timestamp_sample;
 
 		// Guard against too small (< 0.125ms) and too large (> 20ms) dt's.
+		// ! L1 采样时间用这个dt？
 		const float dt = math::constrain(((now - _last_run) * 1e-6f), 0.000125f, 0.02f);
 		_last_run = now;
 
@@ -213,10 +214,16 @@ MulticopterRateControl::Run()
 				_rate_control.setSaturationStatus(saturation_positive, saturation_negative);
 			}
 
-			// run rate controller
+			// run rate controller | for l1 , this is the base controller
 			const Vector3f att_control = _rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed);
 
-			// publish rate controller status
+			// select if L1 adaptive controller enabled
+			if (_param_mc_l1_adaptive_en.get()) {
+				// use L1 adaptive controller
+			}
+
+
+			// publish rate controller status ｜ just rate integral value
 			rate_ctrl_status_s rate_ctrl_status{};
 			_rate_control.getRateControlStatus(rate_ctrl_status);
 			rate_ctrl_status.timestamp = hrt_absolute_time();
