@@ -136,6 +136,7 @@ void SimulatorMavlink::actuator_controls_from_outputs(mavlink_hil_actuator_contr
 #endif
 }
 
+// 转速回传
 void SimulatorMavlink::send_esc_telemetry(mavlink_hil_actuator_controls_t hil_act_control)
 {
 	esc_status_s esc_status{};

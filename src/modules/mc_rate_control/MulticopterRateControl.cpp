@@ -69,6 +69,8 @@ MulticopterRateControl::init()
 		return false;
 	}
 
+	_rate_control_start_time = hrt_absolute_time();
+
 	return true;
 }
 
@@ -97,6 +99,18 @@ MulticopterRateControl::parameters_updated()
 				  radians(_param_mc_acro_y_max.get()));
 }
 
+void MulticopterRateControl::l1_parameters_updated()
+{
+	_l1_adaptive_control.setTuneParameters(_param_mc_l1_as_v.get(),_param_mc_l1_as_omega.get());
+	_l1_adaptive_control.setMassInertia(_param_mc_l1_mass.get(),_param_mc_l1_j_x.get(),_param_mc_l1_j_y.get(),_param_mc_l1_j_z.get());
+	_l1_adaptive_control.setLowPassFilterParameters(_param_mc_l1_cofq1_t.get(),_param_mc_l1_cofq1_m.get(),_param_mc_l1_cofq2_m.get());
+	_l1_adaptive_control.l1enable=_param_mc_l1_en.get();
+	_l1_adaptive_control.l1_ctrl_on=_param_mc_l1_ctrl_on.get();
+	_l1_use_gt_pos = _param_mc_l1_use_gt_pos.get();
+
+}
+
+
 void
 MulticopterRateControl::Run()
 {
@@ -116,6 +130,7 @@ MulticopterRateControl::Run()
 
 		updateParams();
 		parameters_updated();
+		l1_parameters_updated();
 	}
 
 	/* run controller on gyro changes */
@@ -215,12 +230,149 @@ MulticopterRateControl::Run()
 			}
 
 			// run rate controller | for l1 , this is the base controller
-			const Vector3f att_control = _rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed);
+			Vector3f att_control = _rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed);
 
-			// select if L1 adaptive controller enabled
-			if (_param_mc_l1_adaptive_en.get()) {
-				// use L1 adaptive controller
+
+			// **** L1 Adaptive Controller ****
+			if(_last_l1enabled && !_l1_adaptive_control.l1enable)
+			{
+				// if l1 adaptive controller is disabled, we need to reset the controller
+				_l1_adaptive_control._controller_init = false;
 			}
+
+			// don't run l1 adaptive controller at the first 5 seconds
+			if(_l1_adaptive_control.l1enable && (hrt_absolute_time() - _rate_control_start_time) > 5 * 1e6)
+			{
+
+					// update sample time 
+					_l1_adaptive_control.setSampleTime(dt);
+
+					bool should_turnoff_l1 = false;
+					bool should_turnoff_l1_ctrl = false;
+
+					// update states including linear velocity and angular rates
+					vehicle_local_position_s vehicle_local_position;
+					if(_l1_use_gt_pos)
+						_local_pos_gt_sub.copy(&vehicle_local_position);  //! using groundtruth position and velocity no noise
+					else
+						_local_pos_sub.copy(&vehicle_local_position);
+
+					Vector3f velocities = Vector3f(vehicle_local_position.vx,vehicle_local_position.vy, vehicle_local_position.vz);
+
+					if(!PX4_ISFINITE(velocities(0)) || !PX4_ISFINITE(velocities(1)) || !PX4_ISFINITE(velocities(2))) // safety check
+					{
+						PX4_WARN("L1 Adaptive Control: velocity is INF! turn off L1 all");
+						should_turnoff_l1 = true;
+						should_turnoff_l1_ctrl = true;
+					}
+
+					vehicle_attitude_s vehicle_att;
+					_vehicle_attitude_sub.copy(&vehicle_att);
+					Quaternionf vehicle_att_q = Quaternionf(vehicle_att.q[0],vehicle_att.q[1],vehicle_att.q[2],vehicle_att.q[3]);
+
+					// update base controller output
+					Vector3f base_torque = att_control;
+
+					static bool hte_inited = false;
+					float throttle2thrust_ratio = 1.0f;
+					hover_thrust_estimate_s hte;
+					if (_hover_thrust_estimate_sub.update(&hte)) {
+						if (hte.valid) {
+							throttle2thrust_ratio = _l1_adaptive_control.getThrottle2ThrustRatio(hte.hover_thrust);
+							hte_inited = true;
+						}
+					}
+					if (!hte_inited) {
+						if(_l1_adaptive_control.l1_ctrl_on)
+							PX4_WARN("L1 Adaptive Control: hover_thrust_estimate is not valid! Turn off L1 Control");
+						should_turnoff_l1_ctrl = true;
+					}
+
+					// we only need the thrust norm
+					//! WARNING : _thrust_setpoint.norm() this is not the exact thrust force ,it is throttle
+					float thrust_norm = _thrust_setpoint.norm() * throttle2thrust_ratio; 	
+					Vector4f u_b = Vector4f(thrust_norm,base_torque(0),base_torque(1),base_torque(2));
+					Vector4f u_ad = Vector4f(0,0,0,0);
+
+					if(should_turnoff_l1_ctrl && _l1_adaptive_control.l1enable)
+					{
+						_l1_adaptive_control.l1_ctrl_on = false;
+						int32_t false_value = 0;
+						param_set(param_find("MC_L1_CTRL_ON"), &false_value);
+					}
+
+					if(should_turnoff_l1 && _l1_adaptive_control.l1_ctrl_on)
+					{
+						_l1_adaptive_control.l1enable = false;
+						int32_t false_value = 0;
+						param_set(param_find("MC_L1_EN"), &false_value);
+					}
+					else
+					{
+						if(!_l1_adaptive_control._controller_init) // first time
+						{
+							_l1_adaptive_control.initialize(velocities,rates,vehicle_att_q,u_b);
+						}
+						else{
+							_l1_adaptive_control.setState(velocities,rates);
+							_l1_adaptive_control.setAttitude(vehicle_att_q);
+
+							if(_l1_adaptive_control.update(u_b,u_ad))
+							{
+
+								// add u_ad(0) to _thrust_setpoint direction. Note that thrust transit to thrust force
+								_thrust_setpoint = _thrust_setpoint + _thrust_setpoint.normalized() * u_ad(0) / (throttle2thrust_ratio + FLT_EPSILON);
+								// add u_ad(1 to 3) to att_control
+								att_control(0) += u_ad(1);
+								att_control(1) += u_ad(2);
+								att_control(2) += u_ad(3);
+							}
+
+							// for debug
+							Vector3f v_hat = _l1_adaptive_control.getVhat();
+							Vector3f omega_hat = _l1_adaptive_control.getOmegahat();
+							Vector3f v_pred_error_now = _l1_adaptive_control.getVPredError();
+							Vector3f omega_pred_error_now = _l1_adaptive_control.getOmegaPredError();
+							Vector4f sigma_m_now = _l1_adaptive_control.getSigma_m_now();
+							Vector2f sigma_um_now = _l1_adaptive_control.getSigma_um_now();
+
+							l1_adaptive_debug_s l1_adaptive_debug{};
+							l1_adaptive_debug.timestamp = hrt_absolute_time();
+							l1_adaptive_debug.v_pred_x = v_hat(0);
+							l1_adaptive_debug.v_pred_y = v_hat(1);
+							l1_adaptive_debug.v_pred_z = v_hat(2);
+							l1_adaptive_debug.v_pred_error_x = v_pred_error_now(0);
+							l1_adaptive_debug.v_pred_error_y = v_pred_error_now(1);
+							l1_adaptive_debug.v_pred_error_z = v_pred_error_now(2);
+							l1_adaptive_debug.omega_pred_error_x = omega_pred_error_now(0);
+							l1_adaptive_debug.omega_pred_error_y = omega_pred_error_now(1);
+							l1_adaptive_debug.omega_pred_error_z = omega_pred_error_now(2);
+							l1_adaptive_debug.sigma_m_0 = sigma_m_now(0);
+							l1_adaptive_debug.sigma_m_1 = sigma_m_now(1);
+							l1_adaptive_debug.sigma_m_2 = sigma_m_now(2);
+							l1_adaptive_debug.sigma_m_3 = sigma_m_now(3);
+							l1_adaptive_debug.sigma_um_0 = sigma_um_now(0);
+							l1_adaptive_debug.sigma_um_1 = sigma_um_now(1);
+							l1_adaptive_debug.omega_pred_x = omega_hat(0);
+							l1_adaptive_debug.omega_pred_y = omega_hat(1);
+							l1_adaptive_debug.omega_pred_z = omega_hat(2);
+							l1_adaptive_debug.u_ad_0 = u_ad(0);
+							l1_adaptive_debug.u_ad_1 = u_ad(1);
+							l1_adaptive_debug.u_ad_2 = u_ad(2);
+							l1_adaptive_debug.u_ad_3 = u_ad(3);
+							l1_adaptive_debug.u_b_0 = u_b(0);
+							l1_adaptive_debug.u_b_1 = u_b(1);
+							l1_adaptive_debug.u_b_2 = u_b(2);
+							l1_adaptive_debug.u_b_3 = u_b(3);
+							l1_adaptive_debug.l1enable = _l1_adaptive_control.l1enable;
+							_l1_adaptive_debug_pub.publish(l1_adaptive_debug);
+						}
+					}
+			}
+
+			_last_l1enabled = _l1_adaptive_control.l1enable;
+
+			// ****    L1 Adaptive Control End    ****
 
 
 			// publish rate controller status ｜ just rate integral value
@@ -329,8 +481,41 @@ int MulticopterRateControl::task_spawn(int argc, char *argv[])
 
 int MulticopterRateControl::custom_command(int argc, char *argv[])
 {
+	if (argc > 0 && strcmp(argv[0], "print_l1_param") == 0) {
+		if (get_instance()) {
+			return get_instance()->print_l1_param();
+		} else {
+			PX4_ERR("Module instance not running");
+			return PX4_ERROR;
+		}
+	}
 	return print_usage("unknown command");
 }
+
+int MulticopterRateControl::print_l1_param()
+{
+	// Print L1 adaptive controller parameters
+	PX4_INFO("L1 Adaptive Controller Parameters:");
+	PX4_INFO("L1 Enabled: %d", _l1_adaptive_control.l1enable);
+	PX4_INFO("L1 Use ground truth locPos : %d", _l1_use_gt_pos);
+	PX4_INFO("L1 Ctrl On : %d", _l1_adaptive_control.l1_ctrl_on);
+	PX4_INFO("L1 Mass: %f", static_cast<double>(_l1_adaptive_control._m));
+	PX4_INFO("L1 Mass Inverse : %f", static_cast<double>(_l1_adaptive_control._mInverse));
+	PX4_INFO("L1 J_X: %f", static_cast<double>(_l1_adaptive_control._j(0,0)));
+	PX4_INFO("L1 J_Y: %f", static_cast<double>(_l1_adaptive_control._j(1,1)));
+	PX4_INFO("L1 J_Z: %f", static_cast<double>(_l1_adaptive_control._j(2,2)));
+	PX4_INFO("L1 AS_V: %f", static_cast<double>(_l1_adaptive_control._As_v));
+	PX4_INFO("L1 AS_OMEGA: %f", static_cast<double>(_l1_adaptive_control._As_omega));
+	PX4_INFO("L1 COFQ1_T: %f", static_cast<double>(_l1_adaptive_control._lpf_cofq1_T));
+	PX4_INFO("L1 COFQ1_M: %f", static_cast<double>(_l1_adaptive_control._lpf_cofq1_M));
+	PX4_INFO("L1 COFQ2_M: %f", static_cast<double>(_l1_adaptive_control._lpf_cofq2_M));	
+
+	
+
+	return PX4_OK;
+}
+
+
 
 int MulticopterRateControl::print_usage(const char *reason)
 {
@@ -351,6 +536,7 @@ The controller has a PID loop for angular rate error.
 	PRINT_MODULE_USAGE_NAME("mc_rate_control", "controller");
 	PRINT_MODULE_USAGE_COMMAND("start");
 	PRINT_MODULE_USAGE_ARG("vtol", "VTOL mode", true);
+	PRINT_MODULE_USAGE_COMMAND_DESCR("print_l1_param", "Print L1 adaptive controller parameters");
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
 
 	return 0;

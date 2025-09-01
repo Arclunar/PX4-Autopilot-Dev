@@ -143,7 +143,7 @@ public:
 	OutputFunction outputFunction(int index) const { return _function_assignment[index]; }
 
 	/**
-	 * Call this regularly from Run(). It will call interface.updateOutputs().
+	 * Call this regularly from Run(). It will call interface.updateOutputs(). // gazebo sim 的 updateOutputs原来是这里调用的
 	 * @return true if outputs were updated
 	 */
 	bool update();

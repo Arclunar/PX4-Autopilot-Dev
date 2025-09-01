@@ -74,15 +74,15 @@ private:
 
 	void Run() override;
 
-	void motorSpeedCallback(const gz::msgs::Actuators &actuators);
+	void motorSpeedCallback(const gz::msgs::Actuators &actuators); // 转速回传 gz -> px4
 
-	gz::transport::Node &_node;
-	pthread_mutex_t &_node_mutex;
+	gz::transport::Node &_node; 	// gz::transport::Node 是一个线程安全的类，提供了一个线程安全的接口来与 Gazebo 进行通信
+	pthread_mutex_t &_node_mutex;  // 互斥锁，用于保护与 Gazebo 的通信
 
-	MixingOutput _mixing_output{"SIM_GZ_EC", MAX_ACTUATORS, *this, MixingOutput::SchedulingPolicy::Auto, false, false};
+	MixingOutput _mixing_output{"SIM_GZ_EC", MAX_ACTUATORS, *this, MixingOutput::SchedulingPolicy::Auto, false, false}; 
 
-	gz::transport::Node::Publisher _actuators_pub;
+	gz::transport::Node::Publisher _actuators_pub; // 发布转速 px4 -> gz
 
-	uORB::Publication<esc_status_s> _esc_status_pub{ORB_ID(esc_status)};
+	uORB::Publication<esc_status_s> _esc_status_pub{ORB_ID(esc_status)}; // 转速回传 gz -> px4
 
 };

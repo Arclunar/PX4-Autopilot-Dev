@@ -39,6 +39,7 @@ px4_add_module(
 	SRCS
 		MulticopterRateControl.cpp
 		MulticopterRateControl.hpp
+		L1AdaptiveControl.cpp
 	DEPENDS
 		circuit_breaker
 		mathlib

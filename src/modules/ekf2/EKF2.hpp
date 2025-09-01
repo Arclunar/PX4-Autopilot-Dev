@@ -730,6 +730,7 @@ private:
 		(ParamExtFloat<px4::params::EKF2_GYR_B_LIM>) _param_ekf2_gyr_b_lim,	///< Gyro bias learning limit (rad/s)
 
 		// output predictor filter time constants
+		// EKF2_TAU_VEL 和 EKF2_TAU_POS 是输出互补滤波，速度/位置跟踪时间常量
 		(ParamFloat<px4::params::EKF2_TAU_VEL>) _param_ekf2_tau_vel,
 		(ParamFloat<px4::params::EKF2_TAU_POS>) _param_ekf2_tau_pos
 	)

@@ -353,3 +353,4 @@ fi
 
 mavlink boot_complete
 replay trystart
+mavlink start -p -o 14550

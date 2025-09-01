@@ -57,7 +57,7 @@ enum class ActuatorType {
 	MOTORS = 0,
 	SERVOS,
 
-	COUNT
+	COUNT // 表示枚举常量的数量，这里是2 
 };
 
 enum class EffectivenessUpdateReason {
@@ -87,8 +87,10 @@ public:
 
 	static constexpr int MAX_NUM_MATRICES = 2;
 
+	// Effectiveness matrix is a 6x16 matrix, with 6 rows (control axes) and 16 columns (actuators)
 	using EffectivenessMatrix = matrix::Matrix<float, NUM_AXES, NUM_ACTUATORS>;
-	using ActuatorVector = matrix::Vector<float, NUM_ACTUATORS>;
+	// 执行器输出向量是一个16维向量，表示16个执行器的输出
+	using ActuatorVector = matrix::Vector<float, NUM_ACTUATORS>; 
 
 	enum class FlightPhase {
 		HOVER_FLIGHT = 0,
@@ -108,7 +110,7 @@ public:
 		 */
 		void actuatorsAdded(ActuatorType type, int count);
 
-		int totalNumActuators() const;
+		int totalNumActuators() const; // const表示不会修改对象的成员变量
 
 		/// Configured effectiveness matrix. Actuators are expected to be filled in order, motors first, then servos
 		EffectivenessMatrix effectiveness_matrices[MAX_NUM_MATRICES];
@@ -184,7 +186,7 @@ public:
 
 	/**
 	 * Callback from the control allocation, allowing to manipulate the setpoint.
-	 * Used to allocate auxiliary controls to actuators (e.g. flaps and spoilers).
+	 * Used to allocate auxiliary controls to actuators (e.g. flaps and spoilers). 襟翼（flaps）和扰流板（spoilers）。
 	 *
 	 * @param actuator_sp input & output setpoint
 	 */

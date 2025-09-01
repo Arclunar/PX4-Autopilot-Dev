@@ -85,6 +85,7 @@ public:
 
 	bool getEffectivenessMatrix(Configuration &configuration, EffectivenessUpdateReason external_update) override;
 
+	// 意思是对于旋翼，抗饱和使用的就是SEQUENTIAL_DESATURATION？
 	void getDesiredAllocationMethod(AllocationMethod allocation_method_out[MAX_NUM_MATRICES]) const override
 	{
 		allocation_method_out[0] = AllocationMethod::SEQUENTIAL_DESATURATION;
@@ -102,6 +103,7 @@ public:
 
 	const char *name() const override { return "Rotors"; }
 
+	// 根据倾斜的舵机配置和当前的倾斜控制设置电机轴。 只会用在tiltrotorVTOL上
 	/**
 	 * Sets the motor axis from tilt configurations and current tilt control.
 	 * @param tilts configured tilt servos

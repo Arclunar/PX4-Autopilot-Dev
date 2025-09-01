@@ -461,7 +461,7 @@ bool MixingOutput::update()
 			_actuator_test.overrideValues(outputs, _max_num_outputs);
 		}
 
-		limitAndUpdateOutputs(outputs, has_updates);
+		limitAndUpdateOutputs(outputs, has_updates); // updataOutputs在里面
 	}
 
 	_was_all_disabled = all_disabled;

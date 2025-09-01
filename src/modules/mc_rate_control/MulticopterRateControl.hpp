@@ -61,9 +61,12 @@
 #include <uORB/topics/vehicle_torque_setpoint.h>
 
 // Other topics for L1 adaptive
+#include <uORB/topics/hover_thrust_estimate.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_local_position.h>
+#include <uORB/topics/l1_adaptive_debug.h>
+#include "L1AdaptiveControl.hpp"
 
 
 using namespace time_literals;
@@ -83,6 +86,8 @@ public:
 	/** @see ModuleBase */
 	static int print_usage(const char *reason = nullptr);
 
+	int print_l1_param();
+
 	bool init();
 
 private:
@@ -92,6 +97,8 @@ private:
 	 * initialize some vectors/matrices from parameters
 	 */
 	void parameters_updated();
+
+
 
 	void updateActuatorControlsStatus(const vehicle_torque_setpoint_s &vehicle_torque_setpoint, float dt);
 
@@ -115,6 +122,18 @@ private:
 	uORB::Publication<vehicle_torque_setpoint_s>	_vehicle_torque_setpoint_pub;
 	uORB::Publication<vehicle_thrust_setpoint_s>	_vehicle_thrust_setpoint_pub;
 
+	// subscribe to local position and vehicle_attitude
+	uORB::SubscriptionCallbackWorkItem _local_pos_sub{this, ORB_ID(vehicle_local_position)};	/**< vehicle local position */
+	uORB::SubscriptionCallbackWorkItem _local_pos_gt_sub{this, ORB_ID(vehicle_local_position_groundtruth)};
+	uORB::SubscriptionCallbackWorkItem _vehicle_attitude_sub{this, ORB_ID(vehicle_attitude)};
+	// subscribe to hover thrust estimate
+	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
+
+	
+	// publicate L1 debug msg
+	uORB::Publication<l1_adaptive_debug_s> _l1_adaptive_debug_pub{ORB_ID(l1_adaptive_debug)};
+
+
 	vehicle_control_mode_s	_vehicle_control_mode{};
 	vehicle_status_s	_vehicle_status{};
 
@@ -134,6 +153,18 @@ private:
 
 	float _energy_integration_time{0.0f};
 	float _control_energy[4] {};
+
+	// L1 adaptive controller
+	L1AdaptiveControl _l1_adaptive_control;
+	bool _last_l1enabled{false};
+
+	// to turn on l1 adaptive controller after system has started for a while
+	hrt_abstime _rate_control_start_time{0};
+	
+	// parameters update for l1
+	void l1_parameters_updated();
+
+	bool _l1_use_gt_pos{false};
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::MC_ROLLRATE_P>) _param_mc_rollrate_p,
@@ -165,18 +196,23 @@ private:
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPO>) _param_mc_acro_supexpo,		/**< superexpo stick curve shape (roll & pitch) */
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPOY>) _param_mc_acro_supexpoy,		/**< superexpo stick curve shape (yaw) */
 
-		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en,
-
 		// L1 parameters
-		(ParamBool<px4::params::MC_L1_ADAPTIVE_EN>) _param_mc_l1_adaptive_en,
 		(ParamFloat<px4::params::MC_L1_MASS>) _param_mc_l1_mass,
-		(ParamFloat<px4::params::MC_L1_INERTIA_X>) _param_mc_l1_inertia_x,
-		(ParamFloat<px4::params::MC_L1_INERTIA_Y>) _param_mc_l1_inertia_y,
-		(ParamFloat<px4::params::MC_L1_INERTIA_Z>) _param_mc_l1_inertia_z,
+		(ParamFloat<px4::params::MC_L1_J_X>) _param_mc_l1_j_x,
+		(ParamFloat<px4::params::MC_L1_J_Y>) _param_mc_l1_j_y,
+		(ParamFloat<px4::params::MC_L1_J_Z>) _param_mc_l1_j_z,
 		(ParamFloat<px4::params::MC_L1_AS_V>) _param_mc_l1_as_v,
 		(ParamFloat<px4::params::MC_L1_AS_OMEGA>) _param_mc_l1_as_omega,
-		(ParamFloat<px4::params::MC_L1_CUTOFF_FREQ_1_T>) _param_mc_l1_cutoff_freq_1_t,
-		(ParamFloat<px4::params::MC_L1_CUTOFF_FREQ_1_M>) _param_mc_l1_cutoff_freq_1_m,
-		(ParamFloat<px4::params::MC_L1_CUTOFF_FREQ_2_M>) _param_mc_l1_cutoff_freq_2_m,
+		(ParamFloat<px4::params::MC_L1_COFQ1_T>) _param_mc_l1_cofq1_t,
+		(ParamFloat<px4::params::MC_L1_COFQ1_M>) _param_mc_l1_cofq1_m,
+		(ParamFloat<px4::params::MC_L1_COFQ2_M>) _param_mc_l1_cofq2_m,
+
+		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en,
+		// L1 parameters
+		(ParamBool<px4::params::MC_L1_EN>) _param_mc_l1_en,
+		(ParamBool<px4::params::MC_L1_CTRL_ON>) _param_mc_l1_ctrl_on,
+		(ParamBool<px4::params::MC_L1_USE_GT_POS>) _param_mc_l1_use_gt_pos
+
+
 	)
 };

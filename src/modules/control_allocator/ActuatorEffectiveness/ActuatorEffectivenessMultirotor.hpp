@@ -42,8 +42,10 @@ public:
 	ActuatorEffectivenessMultirotor(ModuleParams *parent);
 	virtual ~ActuatorEffectivenessMultirotor() = default;
 
+	// 触发更新控制效率矩阵，核心方法 -> 调用_mc_rotors.addActuators(configuration) -> computeEffectivenessMatrix,actuatorsAdded
 	bool getEffectivenessMatrix(Configuration &configuration, EffectivenessUpdateReason external_update) override;
 
+	// 多旋翼就是的控制分配方案就是SEQUENTIAL_DESATURATION
 	void getDesiredAllocationMethod(AllocationMethod allocation_method_out[MAX_NUM_MATRICES]) const override
 	{
 		allocation_method_out[0] = AllocationMethod::SEQUENTIAL_DESATURATION;
@@ -57,5 +59,6 @@ public:
 	const char *name() const override { return "Multirotor"; }
 
 protected:
+	// 多旋翼的控制效率矩阵就是rotor的控制效率矩阵
 	ActuatorEffectivenessRotors _mc_rotors;
 };

@@ -36,6 +36,7 @@ if [ "$PX4_SIMULATOR" = "sihsim" ] || [ "$(param show -q SYS_AUTOSTART)" -eq "0"
 		exit 1
 	fi
 
+# gazebo sim这里
 elif [ "$PX4_SIMULATOR" = "gz" ] || [ "$(param show -q SIM_GZ_EN)" = "1" ]; then
 	# Use Gazebo
 
@@ -67,6 +68,7 @@ elif [ "$PX4_SIMULATOR" = "gz" ] || [ "$(param show -q SIM_GZ_EN)" = "1" ]; then
 		gz_world=$( ${gz_command} topic -l | grep -m 1 -e "^/world/.*/clock" | sed 's/\/world\///g; s/\/clock//g' )
 
 		# shellcheck disable=SC2153
+		# 如果变量gz_world为空，并且变量PX4_GZ_WORLD不为空，则执行以下代码
 		if [ -z "${gz_world}" ] && [ -n "${PX4_GZ_WORLD}" ]; then
 
 			# source generated gz_env.sh for GZ_SIM_RESOURCE_PATH

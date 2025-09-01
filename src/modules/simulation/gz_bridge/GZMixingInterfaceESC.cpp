@@ -39,13 +39,15 @@ bool GZMixingInterfaceESC::init(const std::string &model_name)
 	// ESC feedback: /x500/command/motor_speed
 	std::string motor_speed_topic = "/" + model_name + "/command/motor_speed";
 
+	// 注册gz_node订阅器，订阅 /x500/command/motor_speed gz -> px4
 	if (!_node.Subscribe(motor_speed_topic, &GZMixingInterfaceESC::motorSpeedCallback, this)) {
 		PX4_ERR("failed to subscribe to %s", motor_speed_topic.c_str());
 		return false;
 	}
 
 	// output eg /X500/command/motor_speed
-	std::string actuator_topic = "/" + model_name + "/command/motor_speed";
+	// 注册ga_node发布器，发布到 /X500/actuator_esc_status, px4 -> gz
+	std::string actuator_topic = "/" + model_name + "/command/motor_speed"; 
 	_actuators_pub = _node.Advertise<gz::msgs::Actuators>(actuator_topic);
 
 	if (!_actuators_pub.Valid()) {
@@ -60,6 +62,8 @@ bool GZMixingInterfaceESC::init(const std::string &model_name)
 	return true;
 }
 
+// 将px4中执行器的输出转换为Gazebo中的执行器输出
+// 重写基类的updateOutputs函数
 bool GZMixingInterfaceESC::updateOutputs(bool stop_motors, uint16_t outputs[MAX_ACTUATORS], unsigned num_outputs,
 		unsigned num_control_groups_updated)
 {
@@ -83,7 +87,7 @@ bool GZMixingInterfaceESC::updateOutputs(bool stop_motors, uint16_t outputs[MAX_
 		}
 
 		if (_actuators_pub.Valid()) {
-			return _actuators_pub.Publish(rotor_velocity_message);
+			return _actuators_pub.Publish(rotor_velocity_message); // 发布到 /X500/command/motor_speed
 		}
 	}
 
@@ -92,10 +96,17 @@ bool GZMixingInterfaceESC::updateOutputs(bool stop_motors, uint16_t outputs[MAX_
 
 void GZMixingInterfaceESC::Run()
 {
-	pthread_mutex_lock(&_node_mutex);
+	pthread_mutex_lock(&_node_mutex); //  锁定_node_mutex，保护和_gz_node的访问
+
+	// 这里和mixer_module.hpp中的下面对应
+	/**	bool update();
+	 * Call this regularly from Run(). It will call interface.updateOutputs().
+	 * @return true if outputs were updated
+	 */
+
 	_mixing_output.update();
 	_mixing_output.updateSubscriptions(false);
-	pthread_mutex_unlock(&_node_mutex);
+	pthread_mutex_unlock(&_node_mutex); //  解锁_node_mutex
 }
 
 void GZMixingInterfaceESC::motorSpeedCallback(const gz::msgs::Actuators &actuators)
