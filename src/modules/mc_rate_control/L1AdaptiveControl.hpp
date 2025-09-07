@@ -118,6 +118,12 @@ public:
 		// initial predictor output to zeros
 		_v_hat_prev = Vector3f(0,0,0);
 		_omega_hat_prev = Vector3f(0,0,0);
+		_omega_hat_prev(0) = 0.0;
+		_omega_hat_prev(1) = 0.0;
+		_omega_hat_prev(2) = 0.0;
+
+		_omega_pred_error_prev = Vector3f(0,0,0);
+		_v_pred_error_prev = Vector3f(0,0,0);
 
 		// last step state
 		_v_prev = v_now;
@@ -158,15 +164,16 @@ public:
 			return false;
 		}
 
-		Vector3f v_hat, omega_hat; // state predictor value for translational speed and rotational speed
+		// Vector3f v_hat, omega_hat; // state predictor value for translational speed and rotational speed
+		Vector3f omega_hat;
 
 		// update state predictor of this step
-		v_hat = _v_hat_prev +
-			(e3 * GRAVITY_MAGNITUDE
-			- _R_prev.col(2) * (_u_b_prev(0) + _u_ad_prev(0) + _sigma_m_hat_prev(0)) * _mInverse
-			+ _R_prev.col(0) * _sigma_um_hat_prev(0) * _mInverse
-			+ _R_prev.col(1) * _sigma_um_hat_prev(1) * _mInverse
-			+ _v_pred_error_prev * _As_v) * _dt;
+		// v_hat = _v_hat_prev +
+		// 	(e3 * GRAVITY_MAGNITUDE
+		// 	- _R_prev.col(2) * (_u_b_prev(0) + _u_ad_prev(0) + _sigma_m_hat_prev(0)) * _mInverse
+		// 	+ _R_prev.col(0) * _sigma_um_hat_prev(0) * _mInverse
+		// 	+ _R_prev.col(1) * _sigma_um_hat_prev(1) * _mInverse
+		// 	+ _v_pred_error_prev * _As_v) * _dt;
 
 
 		Vector3f tempVec = {_u_b_prev(1) + _u_ad_prev(1) + _sigma_m_hat_prev(1),
@@ -178,30 +185,33 @@ public:
 		+ _jInverse * tempVec + _omega_pred_error_prev * _As_omega) * _dt;
 
 		// update predictor output storage
-		_v_hat_prev = v_hat;
+		// _v_hat_prev = v_hat;
 		_omega_hat_prev = omega_hat;
 
 		// compute prediction error for this step
-		_v_pred_error_now = v_hat - _v_now;
+		// _v_pred_error_now = v_hat - _v_now;
 		_omega_pred_error_now = omega_hat - _omega_now;
 
 		// exponential coefficients for As
-		float exp_As_v_dt = expf(_As_v * _dt);
+		// float exp_As_v_dt = expf(_As_v * _dt);
 		float exp_As_omega_dt = expf(_As_omega * _dt);
 
 		// compute uncertainty h(t) piece constant
-		Vector3f PhiInvmu_v = _v_pred_error_now / (exp_As_v_dt - 1) * _As_v * exp_As_v_dt;
+		// Vector3f PhiInvmu_v = _v_pred_error_now / (exp_As_v_dt - 1) * _As_v * exp_As_v_dt;
 		Vector3f PhiInvmu_omega = _omega_pred_error_now / (exp_As_omega_dt - 1) * _As_omega * exp_As_omega_dt;
 
 		// obtain the matched and unmatched uncertainty
-		_sigma_m_hat_now(0) = Vector3f(_R_now.col(2)).dot(PhiInvmu_v) * _m;
+		// _sigma_m_hat_now(0) = Vector3f(_R_now.col(2)).dot(PhiInvmu_v) * _m;
+		_sigma_m_hat_now(0) = 0;
 		_sigma_m_hat_now_2to4 = -_j * PhiInvmu_omega;
 		_sigma_m_hat_now(1) = _sigma_m_hat_now_2to4(0);
 		_sigma_m_hat_now(2) = _sigma_m_hat_now_2to4(1);
 		_sigma_m_hat_now(3) = _sigma_m_hat_now_2to4(2);
 
-		_sigma_um_hat_now(0) = - Vector3f(_R_now.col(0)).dot(PhiInvmu_v) * _m;
-		_sigma_um_hat_now(1) = - Vector3f(_R_now.col(1)).dot(PhiInvmu_v) * _m;
+		// _sigma_um_hat_now(0) = - Vector3f(_R_now.col(0)).dot(PhiInvmu_v) * _m;
+		// _sigma_um_hat_now(1) = - Vector3f(_R_now.col(1)).dot(PhiInvmu_v) * _m;
+		_sigma_um_hat_now(0) = 0;
+		_sigma_um_hat_now(1) = 0;
 
 		// store uncertainty estimations
 		_sigma_m_hat_prev = _sigma_m_hat_now;
@@ -210,8 +220,8 @@ public:
 		if(l1_ctrl_on)
 		{
 			// compute lpf1 coefficients
-			float lpf1_coefficientThrust1 = expf(-_lpf_cofq1_T * _dt);
-			float lpf1_coefficientThrust2 = 1.0f - lpf1_coefficientThrust1;
+			// float lpf1_coefficientThrust1 = expf(-_lpf_cofq1_T * _dt);
+			// float lpf1_coefficientThrust2 = 1.0f - lpf1_coefficientThrust1;
 
 			float lpf1_coefficientMoment1 = expf(-_lpf_cofq1_M * _dt);
 			float lpf1_coefficientMoment2 = 1.0f - lpf1_coefficientMoment1;
@@ -221,7 +231,7 @@ public:
 			Vector4f u_ad;
 
 			// low-pass filter 1 (negation is added to u_ad_prev to filter the correct signal)
-			u_ad_int(0) = lpf1_coefficientThrust1 * (_lpf1_prev(0)) + lpf1_coefficientThrust2 * _sigma_m_hat_now(0);
+			// u_ad_int(0) = lpf1_coefficientThrust1 * (_lpf1_prev(0)) + lpf1_coefficientThrust2 * _sigma_m_hat_now(0);
 			u_ad_int(1) = lpf1_coefficientMoment1 * (_lpf1_prev(1)) + lpf1_coefficientMoment2 * _sigma_m_hat_now(1);
 			u_ad_int(2) = lpf1_coefficientMoment1 * (_lpf1_prev(2)) + lpf1_coefficientMoment2 * _sigma_m_hat_now(2);
 			u_ad_int(3) = lpf1_coefficientMoment1 * (_lpf1_prev(3)) + lpf1_coefficientMoment2 * _sigma_m_hat_now(3);

@@ -163,6 +163,10 @@ private:
 	
 	// parameters update for l1
 	void l1_parameters_updated();
+	bool _l1_print{false};
+	float _l1_torque_ratio_x{1.0f};
+	float _l1_torque_ratio_y{1.0f};
+
 
 	bool _l1_use_gt_pos{false};
 
@@ -206,12 +210,16 @@ private:
 		(ParamFloat<px4::params::MC_L1_COFQ1_T>) _param_mc_l1_cofq1_t,
 		(ParamFloat<px4::params::MC_L1_COFQ1_M>) _param_mc_l1_cofq1_m,
 		(ParamFloat<px4::params::MC_L1_COFQ2_M>) _param_mc_l1_cofq2_m,
+		(ParamFloat<px4::params::MC_L1_TOR_RATX>) _param_mc_l1_tor_ratx,
+		(ParamFloat<px4::params::MC_L1_TOR_RATY>) _param_mc_l1_tor_raty,
 
 		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en,
 		// L1 parameters
 		(ParamBool<px4::params::MC_L1_EN>) _param_mc_l1_en,
 		(ParamBool<px4::params::MC_L1_CTRL_ON>) _param_mc_l1_ctrl_on,
-		(ParamBool<px4::params::MC_L1_USE_GT_POS>) _param_mc_l1_use_gt_pos
+		(ParamBool<px4::params::MC_L1_USE_GT_POS>) _param_mc_l1_use_gt_pos,
+		(ParamBool<px4::params::MC_L1_PRINT>) _param_mc_l1_print
+
 
 
 	)

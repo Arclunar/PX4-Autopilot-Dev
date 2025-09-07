@@ -97,8 +97,8 @@ PARAM_DEFINE_FLOAT(MC_L1_AS_OMEGA, 0.0f);
  * For L1 adaptvie controller, uav mass
  *
  * @min 0.0
- * @decimal 2
- * @increment 0.01
+ * @decimal 3
+ * @increment 0.001
  * @group Multicopter Rate Control
  */
 PARAM_DEFINE_FLOAT(MC_L1_MASS, 0.0f);
@@ -110,8 +110,8 @@ PARAM_DEFINE_FLOAT(MC_L1_MASS, 0.0f);
  * For L1 adaptvie controller, uav inertia x element
  *
  * @min 0.0
- * @decimal 2
- * @increment 0.01
+ * @decimal 5
+ * @increment 0.0001
  * @group Multicopter Rate Control
  */
 PARAM_DEFINE_FLOAT(MC_L1_J_X, 0.0f);
@@ -123,8 +123,8 @@ PARAM_DEFINE_FLOAT(MC_L1_J_X, 0.0f);
  * For L1 adaptvie controller, uav inertia y element
  *
  * @min 0.0
- * @decimal 2
- * @increment 0.01
+ * @decimal 5
+ * @increment 0.0001
  * @group Multicopter Rate Control
  */
 PARAM_DEFINE_FLOAT(MC_L1_J_Y, 0.0f);
@@ -136,8 +136,8 @@ PARAM_DEFINE_FLOAT(MC_L1_J_Y, 0.0f);
  * For L1 adaptvie controller, uav inertia z element
  *
  * @min 0.0
- * @decimal 2
- * @increment 0.01
+ * @decimal 5
+ * @increment 0.0001
  * @group Multicopter Rate Control
  */
 PARAM_DEFINE_FLOAT(MC_L1_J_Z, 0.0f);
@@ -183,3 +183,40 @@ PARAM_DEFINE_FLOAT(MC_L1_COFQ1_M, 0.0f);
  * @group Multicopter Rate Control
  */
 PARAM_DEFINE_FLOAT(MC_L1_COFQ2_M, 0.0f);
+
+
+/**
+ * Enable L1 adaptive controller print info for debug
+ *
+ * enable L1 adaptive controller print debug information
+ *
+ * @boolean
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_INT32(MC_L1_PRINT, 0);
+
+/**
+ *
+ * att_control to real torque ratio for x axis
+ *
+ * mc rate controller pid output to real torque ratio
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_TOR_RATX, 1.0f);
+
+/**
+ *
+ * att_control to real torque ratio for y axis
+ *
+ * mc rate controller pid output to real torque ratio
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_TOR_RATY, 1.0f);
