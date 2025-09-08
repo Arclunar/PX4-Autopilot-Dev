@@ -83,6 +83,7 @@ public:
 	/** @see ModuleBase */
 	static int custom_command(int argc, char *argv[]);
 
+
 	/** @see ModuleBase */
 	static int print_usage(const char *reason = nullptr);
 
@@ -128,7 +129,6 @@ private:
 	uORB::SubscriptionCallbackWorkItem _vehicle_attitude_sub{this, ORB_ID(vehicle_attitude)};
 	// subscribe to hover thrust estimate
 	uORB::Subscription _hover_thrust_estimate_sub{ORB_ID(hover_thrust_estimate)};
-
 	
 	// publicate L1 debug msg
 	uORB::Publication<l1_adaptive_debug_s> _l1_adaptive_debug_pub{ORB_ID(l1_adaptive_debug)};
@@ -155,8 +155,11 @@ private:
 	float _control_energy[4] {};
 
 	// L1 adaptive controller
+	int32_t _adaptive_controller_type{0};
 	L1AdaptiveControl _l1_adaptive_control;
+	NaiveL1AdaptiveControl _naive_l1_adaptive_control;
 	bool _last_l1enabled{false};
+	bool _l1_yaw_on{false};
 
 	// to turn on l1 adaptive controller after system has started for a while
 	hrt_abstime _rate_control_start_time{0};
@@ -218,9 +221,11 @@ private:
 		(ParamBool<px4::params::MC_L1_EN>) _param_mc_l1_en,
 		(ParamBool<px4::params::MC_L1_CTRL_ON>) _param_mc_l1_ctrl_on,
 		(ParamBool<px4::params::MC_L1_USE_GT_POS>) _param_mc_l1_use_gt_pos,
-		(ParamBool<px4::params::MC_L1_PRINT>) _param_mc_l1_print
+		(ParamBool<px4::params::MC_L1_PRINT>) _param_mc_l1_print,
 
-
-
+		(ParamInt<px4::params::ADA_CONTROL_TYPE>) _param_ada_control_type,
+		(ParamFloat<px4::params::MC_L1_EMAX>) _param_mc_l1_emax,
+		(ParamFloat<px4::params::MC_L1_KAD>) _param_mc_l1_kad,
+		(ParamInt<px4::params::MC_L1_YAW_ON>) _param_mc_l1_yaw_on
 	)
 };

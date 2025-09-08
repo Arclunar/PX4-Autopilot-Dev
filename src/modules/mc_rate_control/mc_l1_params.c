@@ -84,12 +84,11 @@ PARAM_DEFINE_FLOAT(MC_L1_AS_V, 0.0f);
  *
  * For L1 adaptvie controller, user selected diagonal Hurwitz matrix diagonal element for angular velocity
  *
- * @min 0.0
- * @decimal 2
- * @increment 0.01
+ * @decimal 3
+ * @increment 0.001
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_AS_OMEGA, 0.0f);
+PARAM_DEFINE_FLOAT(MC_L1_AS_OMEGA, -10.0f);
 
 /**
  * mass
@@ -169,7 +168,7 @@ PARAM_DEFINE_FLOAT(MC_L1_COFQ1_T, 0.0f);
  * @increment 0.01
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_COFQ1_M, 0.0f);
+PARAM_DEFINE_FLOAT(MC_L1_COFQ1_M, 5.0f);
 
 /**
  *
@@ -202,11 +201,11 @@ PARAM_DEFINE_INT32(MC_L1_PRINT, 0);
  * mc rate controller pid output to real torque ratio
  *
  * @min 0.0
- * @decimal 2
- * @increment 0.01
+ * @decimal 3
+ * @increment 0.001
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_TOR_RATX, 1.0f);
+PARAM_DEFINE_FLOAT(MC_L1_TOR_RATX, 17.274f);
 
 /**
  *
@@ -215,8 +214,59 @@ PARAM_DEFINE_FLOAT(MC_L1_TOR_RATX, 1.0f);
  * mc rate controller pid output to real torque ratio
  *
  * @min 0.0
+ * @decimal 3
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_TOR_RATY, 23.791f);
+
+/**
+* adaptive controller type
+*
+* 0 for L1 adaptive controller; 1 for naive L1 adaptive controller
+*
+* @min 0
+* @max 1
+* @value 0 L1 Adaptive Control
+* @value 1 Naive L1 Adaptive Control
+* @reboot_required true
+* @group Multicopter Rate Control
+*/
+PARAM_DEFINE_INT32(ADA_CONTROL_TYPE, 0);
+
+/**
+ *
+ * kad for naive l1 adaptive controller
+ *
+ * l1 adaptive controller gain for naive l1 adaptive controller
+ *
+ * @min 0.0
  * @decimal 2
  * @increment 0.01
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_TOR_RATY, 1.0f);
+PARAM_DEFINE_FLOAT(MC_L1_KAD, 1.0f);
+
+
+/**
+ *
+ * emax for naive l1 adaptive controller
+ *
+ * l1 adaptive controller error emax for naive l1 adaptive controller
+ *
+ * @min 0.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_L1_EMAX, 1.0f);
+
+/**
+ * Enable L1 adaptive controller add yaw compensate
+ *
+ * enable L1 adaptive controller add yaw compensate
+ *
+ * @boolean
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_INT32(MC_L1_YAW_ON, 0);

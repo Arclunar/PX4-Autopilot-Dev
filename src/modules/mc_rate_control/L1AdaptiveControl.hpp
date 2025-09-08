@@ -55,6 +55,65 @@
 
 using namespace matrix;
 
+class NaiveL1AdaptiveControl
+{
+public:
+	NaiveL1AdaptiveControl() = default;
+	~NaiveL1AdaptiveControl() = default;
+
+	// set sample time
+	void setSampleTime(float dt)
+	{
+		_dt = dt;
+	}
+
+	void setEnable(bool enable)
+	{
+		_enable = enable;
+	}
+
+	void setParam(float kad, float omega_c, float emax)
+	{
+		_kad = kad;
+		_omega_c = omega_c;
+		_emax = emax;
+	}
+
+	// input : rate_err u_ad_out
+	void update(const Vector3f &rate_err, Vector3f &u_ad_out)
+	{
+		if (!_enable) {
+			u_ad_out = Vector3f(0, 0, 0);
+			return;
+		}
+
+		// calculate sigma_hat
+		for (int i = 0; i < 3; i++) {
+			float e_normed = rate_err(i) / _emax;
+			_sat_e = math::constrain(e_normed, -1.0f, 1.0f);
+			_sigma_hat(i) = _kad * _sat_e;
+		}
+
+		// low pass filter for u_ad_out
+		float alpha = expf(-_omega_c * _dt);
+		float beta = 1.0f - alpha;
+
+		_u_ad = alpha * _u_ad + beta * _sigma_hat;
+
+		// compute adaptive control output
+		u_ad_out = -_u_ad;
+	}
+
+	float _dt = 0.01f; // sample time
+	bool _enable = false;
+	float _kad = 0.5f; // adaptive gain
+	float _omega_c = 30.0f; // low pass filter cutoff frequency
+	float _emax = 0.5f; // maxiumum prediction error
+	float _sat_e = 0.0f; // saturated prediction error
+	Vector3f _u_ad = Vector3f(0,0,0); // adaptive control output
+	Vector3f _sigma_hat = Vector3f(0,0,0); // estimate of uncertainty
+}; // end of naive l1 adaptive controller
+
 
 class L1AdaptiveControl
 {
@@ -136,6 +195,7 @@ public:
 		_sigma_m_hat_prev = Vector4f(0,0,0,0);
 		_sigma_um_hat_prev = Vector2f(0,0);
 		_lpf1_prev = Vector4f(0,0,0,0);
+		_lpf2_prev = Vector4f(0,0,0,0);
 
 		_controller_init = true;
 	}
@@ -177,9 +237,10 @@ public:
 
 
 		Vector3f tempVec = {_u_b_prev(1) + _u_ad_prev(1) + _sigma_m_hat_prev(1),
-			_u_b_prev(2) + _u_ad_prev(2) + _sigma_m_hat_prev(2),
-			_u_b_prev(3) + _u_ad_prev(3) + _sigma_m_hat_prev(3)};
+							_u_b_prev(2) + _u_ad_prev(2) + _sigma_m_hat_prev(2),
+							_u_b_prev(3) + _u_ad_prev(3) + _sigma_m_hat_prev(3)};
 
+		// state predictor for angular velocity (tune _j and _As_omega to make omega_hat converge to omega_now fast)
 		omega_hat = _omega_hat_prev
 		+ (-_jInverse * (_omega_prev % (_j * _omega_prev))
 		+ _jInverse * tempVec + _omega_pred_error_prev * _As_omega) * _dt;
@@ -199,6 +260,8 @@ public:
 		// compute uncertainty h(t) piece constant
 		// Vector3f PhiInvmu_v = _v_pred_error_now / (exp_As_v_dt - 1) * _As_v * exp_As_v_dt;
 		Vector3f PhiInvmu_omega = _omega_pred_error_now / (exp_As_omega_dt - 1) * _As_omega * exp_As_omega_dt;
+
+		_h = -PhiInvmu_omega;
 
 		// obtain the matched and unmatched uncertainty
 		// _sigma_m_hat_now(0) = Vector3f(_R_now.col(2)).dot(PhiInvmu_v) * _m;
@@ -238,12 +301,26 @@ public:
 
 			_lpf1_prev = u_ad_int; // store the current state
 
+			// low-pass filter 2
+			float lpf2_coefficient1 = expf(-_lpf_cofq2_M * _dt);
+			float lpf2_coefficient2 = 1.0f - lpf2_coefficient1;
+			// u_ad(0) = lpf2_coefficient1 * (_lpf2_prev(0)) + lpf2_coefficient2 * u_ad_int(0);
+			u_ad(1) = lpf2_coefficient1 * (_lpf2_prev(1)) + lpf2_coefficient2 * u_ad_int(1);
+			u_ad(2) = lpf2_coefficient1 * (_lpf2_prev(2)) + lpf2_coefficient2 * u_ad_int(2);
+			u_ad(3) = lpf2_coefficient1 * (_lpf2_prev(3)) + lpf2_coefficient2 * u_ad_int(3);
+			_lpf2_prev = u_ad; // store the current state
+
 			// negate
-			u_ad_out = -u_ad_int ;
+			u_ad_out = -u_ad; ;
+
+			// add adaptive gain to avoid vibration
+			u_ad_out = u_ad_out * _kad;
 		}
 		else
 		{
+			
 			_lpf1_prev = Vector4f{0, 0, 0, 0};
+			_lpf2_prev = Vector4f{0, 0, 0, 0};
 			u_ad_out = Vector4f{0, 0, 0, 0};
 		}
 
@@ -300,6 +377,8 @@ public:
 	float _As_v;
 	float _As_omega;
 	float _dt; //sample duration
+	Vector3f _h;
+	float _kad; // adaptive gain
 
 	// parameters for low pass filter
 	float _lpf_cofq1_T;
@@ -362,7 +441,7 @@ public:
 
 	// lpf state
 	Vector4f _lpf1_prev; // storage of previous step u_adaptive
-
+	Vector4f _lpf2_prev;
 
 
 }; // L1AdaptiveControl

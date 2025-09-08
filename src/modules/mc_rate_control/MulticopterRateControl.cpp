@@ -100,7 +100,10 @@ MulticopterRateControl::parameters_updated()
 }
 
 void MulticopterRateControl::l1_parameters_updated()
-{
+{	
+	_adaptive_controller_type = _param_ada_control_type.get();
+
+	// L1 adaptive controller
 	_l1_adaptive_control.setTuneParameters(_param_mc_l1_as_v.get(),_param_mc_l1_as_omega.get());
 	_l1_adaptive_control.setMassInertia(_param_mc_l1_mass.get(),_param_mc_l1_j_x.get(),_param_mc_l1_j_y.get(),_param_mc_l1_j_z.get());
 	_l1_adaptive_control.setLowPassFilterParameters(_param_mc_l1_cofq1_t.get(),_param_mc_l1_cofq1_m.get(),_param_mc_l1_cofq2_m.get());
@@ -110,7 +113,12 @@ void MulticopterRateControl::l1_parameters_updated()
 	_l1_print = _param_mc_l1_print.get();
 	_l1_torque_ratio_x = _param_mc_l1_tor_ratx.get();
 	_l1_torque_ratio_y = _param_mc_l1_tor_raty.get();
+	_l1_adaptive_control._kad = _param_mc_l1_kad.get();
+	_l1_yaw_on = _param_mc_l1_yaw_on.get();
 
+	// naive l1 adaptive controller
+	_naive_l1_adaptive_control.setParam(_param_mc_l1_kad.get(),_param_mc_l1_cofq1_m.get(),_param_mc_l1_emax.get());
+	_naive_l1_adaptive_control.setEnable(_param_mc_l1_en.get());
 }
 
 
@@ -136,10 +144,25 @@ MulticopterRateControl::Run()
 		l1_parameters_updated();
 	}
 
-	/* run controller on gyro changes */
-	vehicle_angular_velocity_s angular_velocity;
+       /* run controller on gyro changes */
+       vehicle_angular_velocity_s angular_velocity;
 
-	if (_vehicle_angular_velocity_sub.update(&angular_velocity)) {
+       // === 新增：根据遥控器10通道控制L1自适应控制器开关 ===
+       manual_control_setpoint_s manual_control_setpoint_for_l1;
+       if (_manual_control_setpoint_sub.update(&manual_control_setpoint_for_l1)) {
+	       // 假设第10通道映射为 aux2，实际可根据遥控器映射调整
+	       // PX4默认manual_control_setpoint.aux1/aux2/aux3/aux4分别对应RC 7~10通道
+	       // 这里以aux3为例（即RC10）
+	       bool l1_ctrl_on_now = manual_control_setpoint_for_l1.aux2 > 0.5f;
+	       if (_l1_adaptive_control.l1_ctrl_on != l1_ctrl_on_now) {
+		       _l1_adaptive_control.l1_ctrl_on = l1_ctrl_on_now;
+		       // 同步参数MC_L1_CTRL_ON
+		       int32_t param_value = l1_ctrl_on_now ? 1 : 0;
+		       param_set(param_find("MC_L1_CTRL_ON"), &param_value);
+	       }
+       }
+
+       if (_vehicle_angular_velocity_sub.update(&angular_velocity)) {
 
 		const hrt_abstime now = angular_velocity.timestamp_sample;
 
@@ -237,183 +260,242 @@ MulticopterRateControl::Run()
 
 
 			// **** L1 Adaptive Controller ****
-			if(_last_l1enabled && !_l1_adaptive_control.l1enable)
-			{
-				// if l1 adaptive controller is disabled, we need to reset the controller
-				_l1_adaptive_control._controller_init = false;
-				PX4_INFO("L1 Adaptive Control: disabled!");
-			}
+			if(_adaptive_controller_type == 0){
+				if(_last_l1enabled && !_l1_adaptive_control.l1enable)
+				{
+					// if l1 adaptive controller is disabled, we need to reset the controller
+					_l1_adaptive_control._controller_init = false;
+					PX4_INFO("L1 Adaptive Control: disabled!");
+				}
 
-			// don't run l1 adaptive controller at the first 5 seconds
-			if(_l1_adaptive_control.l1enable && (hrt_absolute_time() - _rate_control_start_time) > 5 * 1e6)
-			{
+				// don't run l1 adaptive controller at the first 5 seconds
+				if(_l1_adaptive_control.l1enable && (hrt_absolute_time() - _rate_control_start_time) > 5 * 1e6)
+				{
 
-					// update sample time 
-					_l1_adaptive_control.setSampleTime(dt);
+						// update sample time 
+						_l1_adaptive_control.setSampleTime(dt);
 
-					// bool should_turnoff_l1 = false;
-					// bool should_turnoff_l1_ctrl = false;
+						// bool should_turnoff_l1 = false;
+						// bool should_turnoff_l1_ctrl = false;
 
-					// update states including linear velocity and angular rates
-					// vehicle_local_position_s vehicle_local_position;
-					// if(_l1_use_gt_pos)
-					// 	_local_pos_gt_sub.copy(&vehicle_local_position);  //! using groundtruth position and velocity no noise
-					// else
-					// 	_local_pos_sub.copy(&vehicle_local_position);
+						// update states including linear velocity and angular rates
+						// vehicle_local_position_s vehicle_local_position;
+						// if(_l1_use_gt_pos)
+						// 	_local_pos_gt_sub.copy(&vehicle_local_position);  //! using groundtruth position and velocity no noise
+						// else
+						// 	_local_pos_sub.copy(&vehicle_local_position);
 
-					// Vector3f velocities = Vector3f(vehicle_local_position.vx,vehicle_local_position.vy, vehicle_local_position.vz);
+						// Vector3f velocities = Vector3f(vehicle_local_position.vx,vehicle_local_position.vy, vehicle_local_position.vz);
 
-					// if(!PX4_ISFINITE(velocities(0)) || !PX4_ISFINITE(velocities(1)) || !PX4_ISFINITE(velocities(2))) // safety check
-					// {
-					// 	PX4_WARN("L1 Adaptive Control: velocity is INF! turn off L1 all");
-					// 	// should_turnoff_l1 = true;
-					// 	// should_turnoff_l1_ctrl = true;
-					// 	_l1_adaptive_control.l1enable = false;
-					// 	int32_t false_value = 0;
-					// 	param_set(param_find("MC_L1_EN"), &false_value);
-					// }
+						// if(!PX4_ISFINITE(velocities(0)) || !PX4_ISFINITE(velocities(1)) || !PX4_ISFINITE(velocities(2))) // safety check
+						// {
+						// 	PX4_WARN("L1 Adaptive Control: velocity is INF! turn off L1 all");
+						// 	// should_turnoff_l1 = true;
+						// 	// should_turnoff_l1_ctrl = true;
+						// 	_l1_adaptive_control.l1enable = false;
+						// 	int32_t false_value = 0;
+						// 	param_set(param_find("MC_L1_EN"), &false_value);
+						// }
 
-					vehicle_attitude_s vehicle_att;
-					_vehicle_attitude_sub.copy(&vehicle_att);
-					Quaternionf vehicle_att_q = Quaternionf(vehicle_att.q[0],vehicle_att.q[1],vehicle_att.q[2],vehicle_att.q[3]);
+						vehicle_attitude_s vehicle_att;
+						_vehicle_attitude_sub.copy(&vehicle_att);
+						Quaternionf vehicle_att_q = Quaternionf(vehicle_att.q[0],vehicle_att.q[1],vehicle_att.q[2],vehicle_att.q[3]);
 
-					// update base controller output
-					Vector3f base_torque = att_control;
+						// update base controller output
+						Vector3f base_torque = att_control;
 
-					// static bool hte_inited = false;
-					float throttle2thrust_ratio = 1.0f;
-					// hover_thrust_estimate_s hte;
-					// if (_hover_thrust_estimate_sub.update(&hte)) {
-					// 	if (hte.valid) {
-					// 		throttle2thrust_ratio = _l1_adaptive_control.getThrottle2ThrustRatio(hte.hover_thrust);
-					// 		hte_inited = true;
-					// 	}
-					// }
-					// if (!hte_inited) {
-					// 	if(_l1_adaptive_control.l1_ctrl_on)
-					// 		PX4_WARN("L1 Adaptive Control: hover_thrust_estimate is not valid! Turn off L1 Control");
-					// 	should_turnoff_l1_ctrl = true;
-					// }
+						// static bool hte_inited = false;
+						float throttle2thrust_ratio = 1.0f;
+						// hover_thrust_estimate_s hte;
+						// if (_hover_thrust_estimate_sub.update(&hte)) {
+						// 	if (hte.valid) {
+						// 		throttle2thrust_ratio = _l1_adaptive_control.getThrottle2ThrustRatio(hte.hover_thrust);
+						// 		hte_inited = true;
+						// 	}
+						// }
+						// if (!hte_inited) {
+						// 	if(_l1_adaptive_control.l1_ctrl_on)
+						// 		PX4_WARN("L1 Adaptive Control: hover_thrust_estimate is not valid! Turn off L1 Control");
+						// 	should_turnoff_l1_ctrl = true;
+						// }
 
-					// we only need the thrust norm
-					//! WARNING : _thrust_setpoint.norm() this is not the exact thrust force ,it is throttle
-					float thrust_norm = _thrust_setpoint.norm() * throttle2thrust_ratio; 	
-					Vector4f u_b = Vector4f(thrust_norm,base_torque(0),base_torque(1),base_torque(2));
-					Vector4f u_ad = Vector4f(0,0,0,0);
+						// we only need the thrust norm
+						//! WARNING : _thrust_setpoint.norm() this is not the exact thrust force ,it is throttle
+						float thrust_norm = _thrust_setpoint.norm() * throttle2thrust_ratio; 	
+						Vector4f u_b = Vector4f(thrust_norm,base_torque(0),base_torque(1),base_torque(2));
+						
+						// transform att_control to real torque
+						u_b(1) = base_torque(0) / _l1_torque_ratio_x;
+						u_b(2) = base_torque(1) / _l1_torque_ratio_y;
 
-					// if(should_turnoff_l1_ctrl && _l1_adaptive_control.l1enable)
-					// {
-					// 	_l1_adaptive_control.l1_ctrl_on = false;
-					// 	int32_t false_value = 0;
-					// 	param_set(param_find("MC_L1_CTRL_ON"), &false_value);
-					// }
+						Vector4f u_ad = Vector4f(0,0,0,0);
 
-					// if(should_turnoff_l1 && _l1_adaptive_control.l1_ctrl_on)
-					// {
-					// 	_l1_adaptive_control.l1enable = false;
-					// 	int32_t false_value = 0;
-					// 	param_set(param_find("MC_L1_EN"), &false_value);
-					// }
+						// if(should_turnoff_l1_ctrl && _l1_adaptive_control.l1enable)
+						// {
+						// 	_l1_adaptive_control.l1_ctrl_on = false;
+						// 	int32_t false_value = 0;
+						// 	param_set(param_find("MC_L1_CTRL_ON"), &false_value);
+						// }
 
-					Vector3f velocities = Vector3f(0,0,0);
-					if(_l1_adaptive_control.l1enable)
-					{
-						if(!_l1_adaptive_control._controller_init) // first time
+						// if(should_turnoff_l1 && _l1_adaptive_control.l1_ctrl_on)
+						// {
+						// 	_l1_adaptive_control.l1enable = false;
+						// 	int32_t false_value = 0;
+						// 	param_set(param_find("MC_L1_EN"), &false_value);
+						// }
+
+						Vector3f velocities = Vector3f(0,0,0);
+						if(_l1_adaptive_control.l1enable)
 						{
-							_l1_adaptive_control.initialize(velocities,rates,vehicle_att_q,u_b);
-							PX4_INFO("L1 Adaptive Control: controller initialized!");
-						}
-						else{
-							_l1_adaptive_control.setState(velocities,rates);
-							_l1_adaptive_control.setAttitude(vehicle_att_q);
-
-							if(_l1_adaptive_control.update(u_b,u_ad))
+							if(!_l1_adaptive_control._controller_init) // first time
 							{
-								if(!PX4_ISFINITE(u_ad(1)) || !PX4_ISFINITE(u_ad(2)) || !PX4_ISFINITE(u_ad(3)))
-								{
-									PX4_WARN("L1 Adaptive Control: u_ad is INF!");
-								}
-								else{
-									// add u_ad(0) to _thrust_setpoint direction. Note that thrust transit to thrust force
-									// ！ stvstv : don't use thrust compensation for now
-									// _thrust_setpoint = _thrust_setpoint + _thrust_setpoint.normalized() * u_ad(0) / (throttle2thrust_ratio + FLT_EPSILON);
-									// add u_ad(1 to 3) to att_control
-									if(_l1_adaptive_control.l1_ctrl_on){
-										att_control(0) += u_ad(1) * _l1_torque_ratio_x;
-										att_control(1) += u_ad(2) * _l1_torque_ratio_y;
-										att_control(2) += u_ad(3);
-									}
-								}
-
+								_l1_adaptive_control.initialize(velocities,rates,vehicle_att_q,u_b);
+								PX4_INFO("L1 Adaptive Control: controller initialized!");
 							}
 							else{
-								PX4_WARN("L1 Adaptive Control: controller update error!");
-							}
+								_l1_adaptive_control.setState(velocities,rates);
+								_l1_adaptive_control.setAttitude(vehicle_att_q);
 
-							// for debug
-							Vector3f v_hat = _l1_adaptive_control.getVhat();
-							Vector3f omega_hat = _l1_adaptive_control.getOmegahat();
-							Vector3f v_pred_error_now = _l1_adaptive_control.getVPredError();
-							Vector3f omega_pred_error_now = _l1_adaptive_control.getOmegaPredError();
-							Vector4f sigma_m_now = _l1_adaptive_control.getSigma_m_now();
-							Vector2f sigma_um_now = _l1_adaptive_control.getSigma_um_now();
-
-							static hrt_abstime last_print_time = 0;
-							if(_l1_print)
-							{
-								if(hrt_absolute_time() - last_print_time > 1e6) // print per 1 seconds
+								if(_l1_adaptive_control.update(u_b,u_ad))
 								{
-									PX4_INFO("v_hat: %f %f %f", (double)v_hat(0), (double)v_hat(1), (double)v_hat(2));
-									PX4_INFO("omega_hat: %f %f %f", (double)omega_hat(0), (double)omega_hat(1), (double)omega_hat(2));
-									PX4_INFO("v_pred_error_now: %f %f %f", (double)v_pred_error_now(0), (double)v_pred_error_now(1), (double)v_pred_error_now(2));
-									PX4_INFO("omega_pred_error_now: %f %f %f", (double)omega_pred_error_now(0), (double)omega_pred_error_now(1), (double)omega_pred_error_now(2));
-									PX4_INFO("sigma_m_now: %f %f %f %f", (double)sigma_m_now(0), (double)sigma_m_now(1), (double)sigma_m_now(2), (double)sigma_m_now(3));
-									PX4_INFO("sigma_um_now: %f %f", (double)sigma_um_now(0), (double)sigma_um_now(1));
-									PX4_INFO("u_ad: %f %f %f %f", (double)u_ad(0), (double)u_ad(1), (double)u_ad(2), (double)u_ad(3));
-									PX4_INFO("u_b: %f %f %f %f", (double)u_b(0), (double)u_b(1), (double)u_b(2), (double)u_b(3));
-									last_print_time = hrt_absolute_time();
+									if(!PX4_ISFINITE(u_ad(1)) || !PX4_ISFINITE(u_ad(2)) || !PX4_ISFINITE(u_ad(3)))
+									{
+										PX4_WARN("L1 Adaptive Control: u_ad is INF!");
+									}
+									else{
+										// add u_ad(0) to _thrust_setpoint direction. Note that thrust transit to thrust force
+										// ！ stvstv : don't use thrust compensation for now
+										// _thrust_setpoint = _thrust_setpoint + _thrust_setpoint.normalized() * u_ad(0) / (throttle2thrust_ratio + FLT_EPSILON);
+										// add u_ad(1 to 3) to att_control
+										if(_l1_adaptive_control.l1_ctrl_on){
+											att_control(0) += u_ad(1) * _l1_torque_ratio_x;
+											att_control(1) += u_ad(2) * _l1_torque_ratio_y;
+											if(_l1_yaw_on)
+											{
+												att_control(2) += u_ad(3);
+											}
+										}
+									}
+
+								}
+								else{
+									PX4_WARN("L1 Adaptive Control: controller update error!");
 								}
 
+								// for debug
+								Vector3f v_hat = _l1_adaptive_control.getVhat();
+								Vector3f omega_hat = _l1_adaptive_control.getOmegahat();
+								Vector3f v_pred_error_now = _l1_adaptive_control.getVPredError();
+								Vector3f omega_pred_error_now = _l1_adaptive_control.getOmegaPredError();
+								Vector4f sigma_m_now = _l1_adaptive_control.getSigma_m_now();
+								Vector2f sigma_um_now = _l1_adaptive_control.getSigma_um_now();
+
+								static hrt_abstime last_print_time = 0;
+								if(_l1_print)
+								{
+									if(hrt_absolute_time() - last_print_time > 1e6) // print per 1 seconds
+									{
+										PX4_INFO("v_hat: %f %f %f", (double)v_hat(0), (double)v_hat(1), (double)v_hat(2));
+										PX4_INFO("omega_hat: %f %f %f", (double)omega_hat(0), (double)omega_hat(1), (double)omega_hat(2));
+										PX4_INFO("v_pred_error_now: %f %f %f", (double)v_pred_error_now(0), (double)v_pred_error_now(1), (double)v_pred_error_now(2));
+										PX4_INFO("omega_pred_error_now: %f %f %f", (double)omega_pred_error_now(0), (double)omega_pred_error_now(1), (double)omega_pred_error_now(2));
+										PX4_INFO("sigma_m_now: %f %f %f %f", (double)sigma_m_now(0), (double)sigma_m_now(1), (double)sigma_m_now(2), (double)sigma_m_now(3));
+										PX4_INFO("sigma_um_now: %f %f", (double)sigma_um_now(0), (double)sigma_um_now(1));
+										PX4_INFO("u_ad: %f %f %f %f", (double)u_ad(0), (double)u_ad(1), (double)u_ad(2), (double)u_ad(3));
+										PX4_INFO("base_torque: %f %f %f", (double)base_torque(0), (double)base_torque(1), (double)base_torque(2));
+										PX4_INFO("u_b: %f %f %f %f", (double)u_b(0), (double)u_b(1), (double)u_b(2), (double)u_b(3));
+										last_print_time = hrt_absolute_time();
+									}
+
+								}
+
+								l1_adaptive_debug_s l1_adaptive_debug{};
+								l1_adaptive_debug.timestamp = hrt_absolute_time();
+								l1_adaptive_debug.v_pred_x = v_hat(0);
+								l1_adaptive_debug.v_pred_y = v_hat(1);
+								l1_adaptive_debug.v_pred_z = v_hat(2);
+								l1_adaptive_debug.v_pred_error_x = v_pred_error_now(0);
+								l1_adaptive_debug.v_pred_error_y = v_pred_error_now(1);
+								l1_adaptive_debug.v_pred_error_z = v_pred_error_now(2);
+								l1_adaptive_debug.omega_pred_error_x = omega_pred_error_now(0);
+								l1_adaptive_debug.omega_pred_error_y = omega_pred_error_now(1);
+								l1_adaptive_debug.omega_pred_error_z = omega_pred_error_now(2);
+								l1_adaptive_debug.sigma_m_0 = sigma_m_now(0);
+								l1_adaptive_debug.sigma_m_1 = sigma_m_now(1);
+								l1_adaptive_debug.sigma_m_2 = sigma_m_now(2);
+								l1_adaptive_debug.sigma_m_3 = sigma_m_now(3);
+								l1_adaptive_debug.sigma_um_0 = sigma_um_now(0);
+								l1_adaptive_debug.sigma_um_1 = sigma_um_now(1);
+								l1_adaptive_debug.omega_pred_x = omega_hat(0);
+								l1_adaptive_debug.omega_pred_y = omega_hat(1);
+								l1_adaptive_debug.omega_pred_z = omega_hat(2);
+								l1_adaptive_debug.u_ad_0 = u_ad(0);
+								l1_adaptive_debug.u_ad_1 = u_ad(1);
+								l1_adaptive_debug.u_ad_2 = u_ad(2);
+								l1_adaptive_debug.u_ad_3 = u_ad(3);
+								l1_adaptive_debug.u_b_0 = u_b(0);
+								l1_adaptive_debug.u_b_1 = u_b(1);
+								l1_adaptive_debug.u_b_2 = u_b(2);
+								l1_adaptive_debug.u_b_3 = u_b(3);
+								l1_adaptive_debug.att_control_0 = base_torque(0);
+								l1_adaptive_debug.att_control_1 = base_torque(1);
+								l1_adaptive_debug.att_control_2 = base_torque(2);
+								l1_adaptive_debug.dt = dt;
+								l1_adaptive_debug.l1enable = _l1_adaptive_control.l1enable;
+								l1_adaptive_debug.l1ctrl_enable = _l1_adaptive_control.l1_ctrl_on;
+								l1_adaptive_debug.as_omega = _param_mc_l1_as_omega.get();
+								l1_adaptive_debug.j_x = _param_mc_l1_j_x.get();
+								l1_adaptive_debug.j_y = _param_mc_l1_j_y.get();
+								l1_adaptive_debug.j_z = _param_mc_l1_j_z.get();
+								l1_adaptive_debug.h_x = _l1_adaptive_control._h(0);
+								l1_adaptive_debug.h_y = _l1_adaptive_control._h(1);
+								l1_adaptive_debug.h_z = _l1_adaptive_control._h(2);
+								l1_adaptive_debug.tor_ratx = _l1_torque_ratio_x;
+								l1_adaptive_debug.tor_raty = _l1_torque_ratio_y;
+								_l1_adaptive_debug_pub.publish(l1_adaptive_debug);
 							}
-
-							l1_adaptive_debug_s l1_adaptive_debug{};
-							l1_adaptive_debug.timestamp = hrt_absolute_time();
-							l1_adaptive_debug.v_pred_x = v_hat(0);
-							l1_adaptive_debug.v_pred_y = v_hat(1);
-							l1_adaptive_debug.v_pred_z = v_hat(2);
-							l1_adaptive_debug.v_pred_error_x = v_pred_error_now(0);
-							l1_adaptive_debug.v_pred_error_y = v_pred_error_now(1);
-							l1_adaptive_debug.v_pred_error_z = v_pred_error_now(2);
-							l1_adaptive_debug.omega_pred_error_x = omega_pred_error_now(0);
-							l1_adaptive_debug.omega_pred_error_y = omega_pred_error_now(1);
-							l1_adaptive_debug.omega_pred_error_z = omega_pred_error_now(2);
-							l1_adaptive_debug.sigma_m_0 = sigma_m_now(0);
-							l1_adaptive_debug.sigma_m_1 = sigma_m_now(1);
-							l1_adaptive_debug.sigma_m_2 = sigma_m_now(2);
-							l1_adaptive_debug.sigma_m_3 = sigma_m_now(3);
-							l1_adaptive_debug.sigma_um_0 = sigma_um_now(0);
-							l1_adaptive_debug.sigma_um_1 = sigma_um_now(1);
-							l1_adaptive_debug.omega_pred_x = omega_hat(0);
-							l1_adaptive_debug.omega_pred_y = omega_hat(1);
-							l1_adaptive_debug.omega_pred_z = omega_hat(2);
-							l1_adaptive_debug.u_ad_0 = u_ad(0);
-							l1_adaptive_debug.u_ad_1 = u_ad(1);
-							l1_adaptive_debug.u_ad_2 = u_ad(2);
-							l1_adaptive_debug.u_ad_3 = u_ad(3);
-							l1_adaptive_debug.u_b_0 = u_b(0);
-							l1_adaptive_debug.u_b_1 = u_b(1);
-							l1_adaptive_debug.u_b_2 = u_b(2);
-							l1_adaptive_debug.u_b_3 = u_b(3);
-							l1_adaptive_debug.dt = dt;
-							l1_adaptive_debug.l1enable = _l1_adaptive_control.l1enable;
-							l1_adaptive_debug.l1ctrl_enable = _l1_adaptive_control.l1_ctrl_on;
-							_l1_adaptive_debug_pub.publish(l1_adaptive_debug);
 						}
-					}
+				}
+
+				_last_l1enabled = _l1_adaptive_control.l1enable;
 			}
+			else if(_adaptive_controller_type == 1){
+				_naive_l1_adaptive_control.setSampleTime(dt);
 
-			_last_l1enabled = _l1_adaptive_control.l1enable;
+				// calculate rate_err from rates and _rates_setpoint
+				Vector3f rate_err = _rates_setpoint - rates;
+				Vector3f u_ad = Vector3f(0,0,0);
+				_naive_l1_adaptive_control.update(rate_err, u_ad);
+				if(!PX4_ISFINITE(u_ad(0)) || !PX4_ISFINITE(u_ad(1)) || !PX4_ISFINITE(u_ad(2)))
+				{
+					PX4_WARN("Naive L1 Adaptive Control: u_ad is INF!");
+				}
+				else{
+					att_control(0) += u_ad(0);
+					att_control(1) += u_ad(1);
+					att_control(2) += u_ad(2);
 
+					// for debug
+					l1_adaptive_debug_s l1_adaptive_debug{};
+					l1_adaptive_debug.timestamp = hrt_absolute_time();
+					l1_adaptive_debug.u_ad_1 = u_ad(0);
+					l1_adaptive_debug.u_ad_2 = u_ad(1);
+					l1_adaptive_debug.u_ad_3 = u_ad(2);
+
+					l1_adaptive_debug.u_b_1 = att_control(0);
+					l1_adaptive_debug.u_b_2 = att_control(1);
+					l1_adaptive_debug.u_b_3 = att_control(2);
+					l1_adaptive_debug.sigma_m_1 = _naive_l1_adaptive_control._sigma_hat(0);
+					l1_adaptive_debug.sigma_m_1 = _naive_l1_adaptive_control._sigma_hat(1);
+					l1_adaptive_debug.sigma_m_1 = _naive_l1_adaptive_control._sigma_hat(2);
+					l1_adaptive_debug.dt = dt;
+					_l1_adaptive_debug_pub.publish(l1_adaptive_debug);
+
+				}
+			}
+			else{
+				PX4_WARN("No valid adaptive controller type selected! Please check ADA_CONTROL_TYPE param!");
+			}
 			// ****    L1 Adaptive Control End    ****
 
 
@@ -536,29 +618,53 @@ int MulticopterRateControl::custom_command(int argc, char *argv[])
 
 int MulticopterRateControl::print_l1_param()
 {
-	// Print L1 adaptive controller parameters
-	PX4_INFO("L1 Adaptive Controller Parameters:");
-	PX4_INFO("L1 Enabled: %d", _l1_adaptive_control.l1enable);
-	PX4_INFO("L1 Use ground truth locPos : %d", _l1_use_gt_pos);
-	PX4_INFO("L1 Ctrl On : %d", _l1_adaptive_control.l1_ctrl_on);
-	PX4_INFO("L1 Mass: %f", static_cast<double>(_l1_adaptive_control._m));
-	PX4_INFO("L1 Mass Inverse : %f", static_cast<double>(_l1_adaptive_control._mInverse));
-	PX4_INFO("L1 J_X: %f", static_cast<double>(_l1_adaptive_control._j(0,0)));
-	PX4_INFO("L1 J_Y: %f", static_cast<double>(_l1_adaptive_control._j(1,1)));
-	PX4_INFO("L1 J_Z: %f", static_cast<double>(_l1_adaptive_control._j(2,2)));
-	PX4_INFO("L1 AS_V: %f", static_cast<double>(_l1_adaptive_control._As_v));
-	PX4_INFO("L1 AS_OMEGA: %f", static_cast<double>(_l1_adaptive_control._As_omega));
-	PX4_INFO("L1 COFQ1_T: %f", static_cast<double>(_l1_adaptive_control._lpf_cofq1_T));
-	PX4_INFO("L1 COFQ1_M: %f", static_cast<double>(_l1_adaptive_control._lpf_cofq1_M));
-	PX4_INFO("L1 COFQ2_M: %f", static_cast<double>(_l1_adaptive_control._lpf_cofq2_M));	
 
-	PX4_INFO("L1 dt: %f", static_cast<double>(_l1_adaptive_control._dt));
+	if(_adaptive_controller_type == 0)
+	{
+		PX4_INFO("Adaptive Controller Type: L1 Adaptive Controller");
+		// Print L1 adaptive controller parameters
+		PX4_INFO("L1 Adaptive Controller Parameters:");
+		PX4_INFO("L1 Enabled: %d", _l1_adaptive_control.l1enable);
+		PX4_INFO("L1 Use ground truth locPos : %d", _l1_use_gt_pos);
+		PX4_INFO("L1 Ctrl On : %d", _l1_adaptive_control.l1_ctrl_on);
+		PX4_INFO("L1 Mass: %f", static_cast<double>(_l1_adaptive_control._m));
+		PX4_INFO("L1 Mass Inverse : %f", static_cast<double>(_l1_adaptive_control._mInverse));
+		PX4_INFO("L1 J_X: %f", static_cast<double>(_l1_adaptive_control._j(0,0)));
+		PX4_INFO("L1 J_Y: %f", static_cast<double>(_l1_adaptive_control._j(1,1)));
+		PX4_INFO("L1 J_Z: %f", static_cast<double>(_l1_adaptive_control._j(2,2)));
+		PX4_INFO("L1 J Inverse: %f %f %f", static_cast<double>(_l1_adaptive_control._jInverse(0,0)), static_cast<double>(_l1_adaptive_control._jInverse(1,1)), static_cast<double>(_l1_adaptive_control._jInverse(2,2)));
+		PX4_INFO("L1 AS_V: %f", static_cast<double>(_l1_adaptive_control._As_v));
+		PX4_INFO("L1 AS_OMEGA: %f", static_cast<double>(_l1_adaptive_control._As_omega));
+		PX4_INFO("L1 COFQ1_T: %f", static_cast<double>(_l1_adaptive_control._lpf_cofq1_T));
+		PX4_INFO("L1 COFQ1_M: %f", static_cast<double>(_l1_adaptive_control._lpf_cofq1_M));
+		PX4_INFO("L1 COFQ2_M: %f", static_cast<double>(_l1_adaptive_control._lpf_cofq2_M));	
+		PX4_INFO("L1 dt: %f", static_cast<double>(_l1_adaptive_control._dt));
+		// omega hat
+		Vector3f omega_hat = _l1_adaptive_control.getOmegahat();
+		PX4_INFO("L1 omega_hat: %f %f %f", static_cast<double>(omega_hat(0)), static_cast<double>(omega_hat(1)), static_cast<double>(omega_hat(2)));
+		// sigma
+		Vector4f sigma_m = _l1_adaptive_control.getSigma_m_now();
+		PX4_INFO("L1 sigma_m: %f %f %f %f", static_cast<double>(sigma_m(0)), static_cast<double>(sigma_m(1)), static_cast<double>(sigma_m(2)), static_cast<double>(sigma_m(3)));
+	}
+	else if(_adaptive_controller_type == 1)
+	{
+		PX4_INFO("Adaptive Controller Type: Naive L1 Controller");
+		// Print naive l1 adaptive controller parameters
+		PX4_INFO("Naive L1 Adaptive Controller Parameters:");
+		PX4_INFO("L1 Enabled: %d", _naive_l1_adaptive_control._enable);
+		PX4_INFO("L1 K_AD: %f", static_cast<double>(_naive_l1_adaptive_control._kad));
+		PX4_INFO("L1 OMEGA_C: %f", static_cast<double>(_naive_l1_adaptive_control._omega_c));
+		PX4_INFO("L1 E_MAX: %f", static_cast<double>(_naive_l1_adaptive_control._emax));
+		PX4_INFO("L1 dt: %f", static_cast<double>(_naive_l1_adaptive_control._dt));
+		// sigma hat
+		Vector3f sigma_hat = _naive_l1_adaptive_control._sigma_hat;
+		PX4_INFO("L1 sigma_hat: %f %f %f", static_cast<double>(sigma_hat(0)), static_cast<double>(sigma_hat(1)), static_cast<double>(sigma_hat(2)));
+	}
+	else
+	{
+		PX4_INFO("Adaptive Controller Type: Unknown");
+	}
 
-	// omega hat
-	Vector3f omega_hat = _l1_adaptive_control.getOmegahat();
-	PX4_INFO("L1 omega_hat: %f %f %f", static_cast<double>(omega_hat(0)), static_cast<double>(omega_hat(1)), static_cast<double>(omega_hat(2)));
-
-	
 
 	return PX4_OK;
 }
