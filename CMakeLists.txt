@@ -122,19 +122,33 @@ execute_process(
 # git describe to X.Y.Z version
 string(REPLACE "." ";" VERSION_LIST ${PX4_GIT_TAG})
 
-# major version
-list(GET VERSION_LIST 0 PX4_VERSION_MAJOR)
-string(REPLACE "v" "" PX4_VERSION_MAJOR ${PX4_VERSION_MAJOR})
-# minor version
-list(GET VERSION_LIST 1 PX4_VERSION_MINOR)
-# patch version
-list(GET VERSION_LIST 2 PX4_VERSION_PATCH)
-string(REPLACE "-" ";" PX4_VERSION_PATCH ${PX4_VERSION_PATCH})
-list(GET PX4_VERSION_PATCH 0 PX4_VERSION_PATCH)
+# Check if we have a proper version tag, otherwise set defaults
+list(LENGTH VERSION_LIST VERSION_LIST_LENGTH)
+if(VERSION_LIST_LENGTH GREATER_EQUAL 3)
+	# major version
+	list(GET VERSION_LIST 0 PX4_VERSION_MAJOR)
+	string(REPLACE "v" "" PX4_VERSION_MAJOR ${PX4_VERSION_MAJOR})
+	# minor version
+	list(GET VERSION_LIST 1 PX4_VERSION_MINOR)
+	# patch version
+	list(GET VERSION_LIST 2 PX4_VERSION_PATCH)
+	string(REPLACE "-" ";" PX4_VERSION_PATCH ${PX4_VERSION_PATCH})
+	list(GET PX4_VERSION_PATCH 0 PX4_VERSION_PATCH)
+else()
+	# No proper version tag found, set default values
+	set(PX4_VERSION_MAJOR "1")
+	set(PX4_VERSION_MINOR "14")
+	set(PX4_VERSION_PATCH "0")
+endif()
 
 # # Capture only the hash part after 'g'
 string(REGEX MATCH "g([a-f0-9]+)$" GIT_HASH "${PX4_GIT_TAG}")
-set(PX4_GIT_HASH ${CMAKE_MATCH_1})
+if(CMAKE_MATCH_1)
+	set(PX4_GIT_HASH ${CMAKE_MATCH_1})
+else()
+	# If no 'g' prefix found, assume the entire tag is a hash
+	set(PX4_GIT_HASH ${PX4_GIT_TAG})
+endif()
 
 define_property(GLOBAL PROPERTY PX4_MODULE_LIBRARIES
                  BRIEF_DOCS "PX4 module libs"

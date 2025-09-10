@@ -99,6 +99,14 @@ MulticopterRateControl::parameters_updated()
 				  radians(_param_mc_acro_y_max.get()));
 }
 
+void MulticopterRateControl::k_adaptive_parameters_updated()
+{
+	_k_max_roll = _param_mc_k_max_roll.get();
+	_k_max_pitch = _param_mc_k_max_pitch.get();
+	_k_max_yaw = _param_mc_k_max_yaw.get();
+	_k_adaptive_on = _param_mc_k_adaptive_on.get();
+}
+
 void MulticopterRateControl::l1_parameters_updated()
 {	
 	_adaptive_controller_type = _param_ada_control_type.get();
@@ -142,27 +150,37 @@ MulticopterRateControl::Run()
 		updateParams();
 		parameters_updated();
 		l1_parameters_updated();
+		k_adaptive_parameters_updated();
 	}
 
-       /* run controller on gyro changes */
-       vehicle_angular_velocity_s angular_velocity;
+	/* run controller on gyro changes */
+	vehicle_angular_velocity_s angular_velocity;
 
-       // === 新增：根据遥控器10通道控制L1自适应控制器开关 ===
-       manual_control_setpoint_s manual_control_setpoint_for_l1;
-       if (_manual_control_setpoint_sub.update(&manual_control_setpoint_for_l1)) {
-	       // 假设第10通道映射为 aux2，实际可根据遥控器映射调整
-	       // PX4默认manual_control_setpoint.aux1/aux2/aux3/aux4分别对应RC 7~10通道
-	       // 这里以aux3为例（即RC10）
-	       bool l1_ctrl_on_now = manual_control_setpoint_for_l1.aux2 > 0.5f;
-	       if (_l1_adaptive_control.l1_ctrl_on != l1_ctrl_on_now) {
-		       _l1_adaptive_control.l1_ctrl_on = l1_ctrl_on_now;
-		       // 同步参数MC_L1_CTRL_ON
-		       int32_t param_value = l1_ctrl_on_now ? 1 : 0;
-		       param_set(param_find("MC_L1_CTRL_ON"), &param_value);
-	       }
-       }
+	// === 新增：根据遥控器10通道控制L1自适应控制器开关 ===
+	manual_control_setpoint_s manual_control_setpoint_for_adaptive_control;
+	if (_manual_control_setpoint_sub.update(&manual_control_setpoint_for_adaptive_control)) {
+		// 假设第10通道映射为 aux2，实际可根据遥控器映射调整
+		// PX4默认manual_control_setpoint.aux1/aux2/aux3/aux4分别对应RC 7~10通道
+		// 这里以aux2为例（即RC10）
+		bool l1_ctrl_on_now = manual_control_setpoint_for_adaptive_control.aux2 > 0.5f;
+		if (_l1_adaptive_control.l1_ctrl_on != l1_ctrl_on_now) {
+			_l1_adaptive_control.l1_ctrl_on = l1_ctrl_on_now;
+			// 同步参数MC_L1_CTRL_ON
+			int32_t param_value = l1_ctrl_on_now ? 1 : 0;
+			param_set(param_find("MC_L1_CTRL_ON"), &param_value);
+		}
 
-       if (_vehicle_angular_velocity_sub.update(&angular_velocity)) {
+		// 这里以aux1为例（即RC8）
+		bool k_adaptive_on_now = manual_control_setpoint_for_adaptive_control.aux1 > 0.5f;
+		if (_k_adaptive_on != k_adaptive_on_now) {
+			_k_adaptive_on = k_adaptive_on_now;
+			// 同步参数MC_K_ADAPTIVE_ON
+			int32_t param_value = k_adaptive_on_now ? 1 : 0;
+			param_set(param_find("MC_K_ADAPTIVE_ON"), &param_value);
+		}
+	}
+
+	if (_vehicle_angular_velocity_sub.update(&angular_velocity)) {
 
 		const hrt_abstime now = angular_velocity.timestamp_sample;
 
@@ -255,8 +273,34 @@ MulticopterRateControl::Run()
 				_rate_control.setSaturationStatus(saturation_positive, saturation_negative);
 			}
 
+			// Ye: update adaptive K
+			debug_vect_s rate_gain_msg;
+			if (_adaptive_K_sub.update(&rate_gain_msg)){
+
+				unlimit_adaptive_K(0) = rate_gain_msg.x;
+				unlimit_adaptive_K(1) = rate_gain_msg.y;
+				unlimit_adaptive_K(2) = rate_gain_msg.z;
+
+				if (_k_adaptive_on) {
+					adaptive_K(0) = math::constrain(rate_gain_msg.x, 1.0f, _k_max_roll);
+					adaptive_K(1) = math::constrain(rate_gain_msg.y, 1.0f, _k_max_pitch);
+					adaptive_K(2) = math::constrain(rate_gain_msg.z, 1.0f, _k_max_yaw);
+				} else {
+					adaptive_K(0) = 1.0f;
+					adaptive_K(1) = 1.0f;
+					adaptive_K(2) = 1.0f;
+				}
+
+				// PX4_INFO("[get uORB message] roll_k: %.6f, pitch_k: %.6f, yaw_k: %.6f",
+				// (double)unlimit_adaptive_K(0), (double)unlimit_adaptive_K(1), (double)unlimit_adaptive_K(2));
+			}
+
+			// Ye run rate controller
+			Vector3f att_control = _rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed, adaptive_K);
+
+
 			// run rate controller | for l1 , this is the base controller
-			Vector3f att_control = _rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed);
+			// Vector3f att_control = _rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed);
 
 
 			// **** L1 Adaptive Controller ****
@@ -437,21 +481,21 @@ MulticopterRateControl::Run()
 								l1_adaptive_debug.u_b_1 = u_b(1);
 								l1_adaptive_debug.u_b_2 = u_b(2);
 								l1_adaptive_debug.u_b_3 = u_b(3);
-								l1_adaptive_debug.att_control_0 = base_torque(0);
-								l1_adaptive_debug.att_control_1 = base_torque(1);
-								l1_adaptive_debug.att_control_2 = base_torque(2);
+								// l1_adaptive_debug.att_control_0 = base_torque(0);
+								// l1_adaptive_debug.att_control_1 = base_torque(1);
+								// l1_adaptive_debug.att_control_2 = base_torque(2);
 								l1_adaptive_debug.dt = dt;
 								l1_adaptive_debug.l1enable = _l1_adaptive_control.l1enable;
 								l1_adaptive_debug.l1ctrl_enable = _l1_adaptive_control.l1_ctrl_on;
-								l1_adaptive_debug.as_omega = _param_mc_l1_as_omega.get();
-								l1_adaptive_debug.j_x = _param_mc_l1_j_x.get();
-								l1_adaptive_debug.j_y = _param_mc_l1_j_y.get();
-								l1_adaptive_debug.j_z = _param_mc_l1_j_z.get();
-								l1_adaptive_debug.h_x = _l1_adaptive_control._h(0);
-								l1_adaptive_debug.h_y = _l1_adaptive_control._h(1);
-								l1_adaptive_debug.h_z = _l1_adaptive_control._h(2);
-								l1_adaptive_debug.tor_ratx = _l1_torque_ratio_x;
-								l1_adaptive_debug.tor_raty = _l1_torque_ratio_y;
+								// l1_adaptive_debug.as_omega = _param_mc_l1_as_omega.get();
+								// l1_adaptive_debug.j_x = _param_mc_l1_j_x.get();
+								// l1_adaptive_debug.j_y = _param_mc_l1_j_y.get();
+								// l1_adaptive_debug.j_z = _param_mc_l1_j_z.get();
+								// l1_adaptive_debug.h_x = _l1_adaptive_control._h(0);
+								// l1_adaptive_debug.h_y = _l1_adaptive_control._h(1);
+								// l1_adaptive_debug.h_z = _l1_adaptive_control._h(2);
+								// l1_adaptive_debug.tor_ratx = _l1_torque_ratio_x;
+								// l1_adaptive_debug.tor_raty = _l1_torque_ratio_y;
 								_l1_adaptive_debug_pub.publish(l1_adaptive_debug);
 							}
 						}
@@ -502,6 +546,15 @@ MulticopterRateControl::Run()
 			// publish rate controller status ｜ just rate integral value
 			rate_ctrl_status_s rate_ctrl_status{};
 			_rate_control.getRateControlStatus(rate_ctrl_status);
+			// Ye: add adaptive k to uORB message
+			rate_ctrl_status.adaptive_k_term[0] = adaptive_K(0);
+			rate_ctrl_status.adaptive_k_term[1] = adaptive_K(1);
+			rate_ctrl_status.adaptive_k_term[2] = adaptive_K(2);
+			rate_ctrl_status.unlimit_adaptive_k_term[0] = unlimit_adaptive_K(0);
+			rate_ctrl_status.unlimit_adaptive_k_term[1] = unlimit_adaptive_K(1);
+			rate_ctrl_status.unlimit_adaptive_k_term[2] = unlimit_adaptive_K(2);
+			rate_ctrl_status.k_adaptive_on = _k_adaptive_on;
+			
 			rate_ctrl_status.timestamp = hrt_absolute_time();
 			_controller_status_pub.publish(rate_ctrl_status);
 
@@ -541,7 +594,6 @@ MulticopterRateControl::Run()
 			_vehicle_torque_setpoint_pub.publish(vehicle_torque_setpoint);
 
 			updateActuatorControlsStatus(vehicle_torque_setpoint, dt);
-
 		}
 	}
 

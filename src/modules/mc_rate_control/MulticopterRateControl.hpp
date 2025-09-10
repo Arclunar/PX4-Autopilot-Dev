@@ -67,6 +67,7 @@
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/l1_adaptive_debug.h>
 #include "L1AdaptiveControl.hpp"
+#include <uORB/topics/debug_vect.h> // Ye
 
 
 using namespace time_literals;
@@ -112,6 +113,7 @@ private:
 	uORB::Subscription _vehicle_land_detected_sub{ORB_ID(vehicle_land_detected)};
 	uORB::Subscription _vehicle_rates_setpoint_sub{ORB_ID(vehicle_rates_setpoint)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
+	uORB::Subscription _adaptive_K_sub{ORB_ID(debug_vect)}; // Ye
 
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
@@ -132,6 +134,9 @@ private:
 	
 	// publicate L1 debug msg
 	uORB::Publication<l1_adaptive_debug_s> _l1_adaptive_debug_pub{ORB_ID(l1_adaptive_debug)};
+
+	matrix::Vector3f adaptive_K{1.0f, 1.0f, 1.0f};
+	matrix::Vector3f unlimit_adaptive_K{1.0f, 1.0f, 1.0f};
 
 
 	vehicle_control_mode_s	_vehicle_control_mode{};
@@ -169,6 +174,13 @@ private:
 	bool _l1_print{false};
 	float _l1_torque_ratio_x{1.0f};
 	float _l1_torque_ratio_y{1.0f};
+
+	// k adaptive parameters update
+	void k_adaptive_parameters_updated();
+	bool _k_adaptive_on{false};
+	float _k_max_roll{1.0f};
+	float _k_max_pitch{1.0f};
+	float _k_max_yaw{1.0f};
 
 
 	bool _l1_use_gt_pos{false};
@@ -226,6 +238,13 @@ private:
 		(ParamInt<px4::params::ADA_CONTROL_TYPE>) _param_ada_control_type,
 		(ParamFloat<px4::params::MC_L1_EMAX>) _param_mc_l1_emax,
 		(ParamFloat<px4::params::MC_L1_KAD>) _param_mc_l1_kad,
-		(ParamInt<px4::params::MC_L1_YAW_ON>) _param_mc_l1_yaw_on
+		(ParamInt<px4::params::MC_L1_YAW_ON>) _param_mc_l1_yaw_on,
+
+		// Ye: K adaptive parameters
+		(ParamBool<px4::params::MC_K_ADAPTIVE_ON>) _param_mc_k_adaptive_on,
+		(ParamFloat<px4::params::MC_K_MAX_ROLL>) _param_mc_k_max_roll,
+		(ParamFloat<px4::params::MC_K_MAX_PITCH>) _param_mc_k_max_pitch,
+		(ParamFloat<px4::params::MC_K_MAX_YAW>) _param_mc_k_max_yaw
+
 	)
 };

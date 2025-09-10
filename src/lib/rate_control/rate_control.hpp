@@ -94,8 +94,11 @@ public:
 	 * @return [-1,1] normalized torque vector to apply to the vehicle
 	 */
 	matrix::Vector3f update(const matrix::Vector3f &rate, const matrix::Vector3f &rate_sp,
+				const matrix::Vector3f &angular_accel, const float dt, const bool landed,  matrix::Vector3f &adaptive_K);
+	
+	// Ye Adaptive Control
+	matrix::Vector3f update(const matrix::Vector3f &rate, const matrix::Vector3f &rate_sp,
 				const matrix::Vector3f &angular_accel, const float dt, const bool landed);
-
 	/**
 	 * Set the integral term to 0 to prevent windup
 	 * @see _rate_int
@@ -129,6 +132,7 @@ private:
 	matrix::Vector3f _gain_d; ///< rate control derivative gain
 	matrix::Vector3f _lim_int; ///< integrator term maximum absolute value
 	matrix::Vector3f _gain_ff; ///< direct rate to torque feed forward gain only useful for helicopters
+	matrix::Vector3f _rate_adapt_k{1.0f, 1.0f, 1.0f}; ///  Ye: < adaptive k term of the rate controller
 
 	// States
 	matrix::Vector3f _rate_int; ///< integral term of the rate controller

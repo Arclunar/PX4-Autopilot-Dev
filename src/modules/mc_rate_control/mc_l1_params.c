@@ -77,7 +77,7 @@ PARAM_DEFINE_INT32(MC_L1_USE_GT_POS, 0);
  * @increment 0.01
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_AS_V, 0.0f);
+PARAM_DEFINE_FLOAT(MC_L1_AS_V, 0.5f);
 
 /**
  * As_omega
@@ -100,7 +100,7 @@ PARAM_DEFINE_FLOAT(MC_L1_AS_OMEGA, -10.0f);
  * @increment 0.001
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_MASS, 0.0f);
+PARAM_DEFINE_FLOAT(MC_L1_MASS, 1.5f);
 
 /**
  *
@@ -113,7 +113,7 @@ PARAM_DEFINE_FLOAT(MC_L1_MASS, 0.0f);
  * @increment 0.0001
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_J_X, 0.0f);
+PARAM_DEFINE_FLOAT(MC_L1_J_X, 0.00736f);
 
 /**
  *
@@ -126,7 +126,7 @@ PARAM_DEFINE_FLOAT(MC_L1_J_X, 0.0f);
  * @increment 0.0001
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_J_Y, 0.0f);
+PARAM_DEFINE_FLOAT(MC_L1_J_Y, 0.00840f);
 
 /**
  *
@@ -139,7 +139,7 @@ PARAM_DEFINE_FLOAT(MC_L1_J_Y, 0.0f);
  * @increment 0.0001
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_J_Z, 0.0f);
+PARAM_DEFINE_FLOAT(MC_L1_J_Z, 0.01176f);
 
 
 
@@ -154,7 +154,7 @@ PARAM_DEFINE_FLOAT(MC_L1_J_Z, 0.0f);
  * @increment 0.01
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_COFQ1_T, 0.0f);
+PARAM_DEFINE_FLOAT(MC_L1_COFQ1_T, 1.0f);
 
 
 /**
@@ -168,7 +168,7 @@ PARAM_DEFINE_FLOAT(MC_L1_COFQ1_T, 0.0f);
  * @increment 0.01
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_COFQ1_M, 5.0f);
+PARAM_DEFINE_FLOAT(MC_L1_COFQ1_M, 10.0f);
 
 /**
  *
@@ -181,7 +181,7 @@ PARAM_DEFINE_FLOAT(MC_L1_COFQ1_M, 5.0f);
  * @increment 0.01
  * @group Multicopter Rate Control
  */
-PARAM_DEFINE_FLOAT(MC_L1_COFQ2_M, 0.0f);
+PARAM_DEFINE_FLOAT(MC_L1_COFQ2_M, 2.0f);
 
 
 /**
@@ -270,3 +270,54 @@ PARAM_DEFINE_FLOAT(MC_L1_EMAX, 1.0f);
  * @group Multicopter Rate Control
  */
 PARAM_DEFINE_INT32(MC_L1_YAW_ON, 0);
+
+// Ye: K adaptive controller
+
+/**
+ * Enable K adaptive controller
+ *
+ * enable K adaptive controller
+ *
+ * @boolean
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_INT32(MC_K_ADAPTIVE_ON, 0);
+
+/**
+ *
+ * K limitation for roll
+ *
+ * max K for roll
+ *
+ * @min 0.0
+ * @decimal 3
+ * @increment 0.001
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_K_MAX_ROLL, 2.7f);
+
+/**
+ *
+ * K limitation for pitch
+ *
+ * max K for pitch
+ *
+ * @min 0.0
+ * @decimal 3
+ * @increment 0.001
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_K_MAX_PITCH, 2.7f);
+
+/**
+ *
+ * K limitation for yaw
+ *
+ * max K for yaw
+ *
+ * @min 0.0
+ * @decimal 3
+ * @increment 0.001
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_K_MAX_YAW, 1.2f);
