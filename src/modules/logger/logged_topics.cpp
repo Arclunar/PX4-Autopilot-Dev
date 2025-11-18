@@ -138,6 +138,7 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("vtol_vehicle_status", 200);
 	add_topic("wind", 1000);
 	add_topic("l1_adaptive_debug",10);
+	add_topic("rate_ndob_outputs");
 
 	// multi topics
 	add_optional_topic_multi("actuator_outputs", 100, 3);
@@ -282,6 +283,7 @@ void LoggedTopics::add_default_topics()
 	add_topic("vehicle_global_position");
 	add_topic("vehicle_local_position");
 	add_topic("wind");
+	add_topic("rate_ndob_outputs");
 	add_topic("yaw_estimator_status");
 
 	add_optional_topic_multi("estimator_aid_src_airspeed", 0, MAX_ESTIMATOR_INSTANCES);

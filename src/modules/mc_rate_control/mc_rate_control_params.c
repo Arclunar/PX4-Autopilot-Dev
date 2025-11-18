@@ -292,3 +292,79 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_K, 1.0f);
  * @group Multicopter Rate Control
  */
 PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
+
+
+/**
+ * Enable disturbance
+ * @min 0
+ * @max 3
+ * @bit 0 roll
+ * @bit 1 pitch
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_INT32(MC_DIST_EN, 0);
+
+/**
+ * disturbance generator frequnecy
+ *
+ *
+ * @min 0.1
+ * @max 50.0
+ * @decimal 1
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_DIST_F, 5.0f);
+
+/**
+ * disturbance generator magnitude
+ *
+ *
+ * @min 0.00
+ * @max 2.00
+ * @decimal 2
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_DIST_MAG, 0.05f);
+
+/**
+ * disturbance generator durations
+ *
+ *
+ * @min 0.00
+ * @max 20.00
+ * @decimal 1
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_DIST_T, 5.0f);
+
+/**
+ * Enable rate nonlinear disturbance observer
+ * @min 0
+ * @max 7
+ * @bit 0 roll
+ * @bit 1 pitch
+ * @bit 2 yaw (unused)
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_INT32(MC_DOB_EN, 0);
+
+/**
+ * Rate NDOB cutoff frequnecy
+ *
+ *
+ * @min 0.1
+ * @max 50.0
+ * @decimal 1
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_DOB_CUTOFF, 5.0f);
+
+ /**
+  * Rate NDOB Gain
+  *
+  * @min -1.0
+ * @max 2.0
+ * @decimal 2
+ * @group Multicopter Rate Control
+ */
+PARAM_DEFINE_FLOAT(MC_DOB_K, 1.0f);

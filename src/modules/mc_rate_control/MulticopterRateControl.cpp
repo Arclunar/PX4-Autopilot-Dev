@@ -97,6 +97,19 @@ MulticopterRateControl::parameters_updated()
 	// manual rate control acro mode rate limits
 	_acro_rate_max = Vector3f(radians(_param_mc_acro_r_max.get()), radians(_param_mc_acro_p_max.get()),
 				  radians(_param_mc_acro_y_max.get()));
+				  
+	// for rate NDOB Test.
+	Vector3f J{0.0092f, 0.0105f, 0.0f};
+ 	_rate_ndob.setInertia(J);
+	_rate_ndob.setGeometry(0.112f, 0.120f);
+	_rate_ndob.setMotor(5.1122e-08f, -6.3536e-05f);
+	_rate_ndob.setFilter(_param_mc_dob_cutoff.get());
+	_rate_ndob.setGainMatrix(Vector3f{_param_mc_dob_k.get(), _param_mc_dob_k.get(), 0.0f});
+
+	// disturbance generator
+	_dist.setDuration(_param_mc_dist_t.get());
+	_dist.setMagnitude(_param_mc_dist_mag.get());
+	_dist.setFrequency(_param_mc_dist_f.get());
 }
 
 void MulticopterRateControl::k_adaptive_parameters_updated()
@@ -297,6 +310,66 @@ MulticopterRateControl::Run()
 
 			// Ye run rate controller
 			Vector3f att_control = _rate_control.update(rates, _rates_setpoint, angular_accel, dt, _maybe_landed || _landed, adaptive_K);
+
+
+			// run ndob
+ 			if (!_vehicle_control_mode.flag_armed)
+ 			{
+ 				_rate_ndob.reset();
+ 			}
+
+ 			esc_status_s esc_status{};
+			_esc_status_sub.copy(&esc_status);
+
+			// feed esc rpm
+			const Vector4f esc_rpm{1.0f*esc_status.esc[0].esc_rpm, 1.0f*esc_status.esc[1].esc_rpm,
+					       1.0f*esc_status.esc[2].esc_rpm, 1.0f*esc_status.esc[3].esc_rpm};
+
+			Vector3f dist_hat{};
+			_rate_ndob.update(dt, esc_rpm, rates, angular_accel, dist_hat);
+
+			switch (_param_mc_dob_en.get())
+			{
+			case 1:
+				att_control(0) -= dist_hat(0);
+				break;
+			case 2:
+				att_control(1) -= dist_hat(1);
+				break;
+			case 3:
+				{
+					att_control(0) -= dist_hat(0);
+					att_control(1) -= dist_hat(1);
+				}
+				break;
+
+			default:
+				break;
+			}
+
+			// Add disturbance
+			manual_control_setpoint_s dist_trigger;
+			_manual_control_setpoint_sub.copy(&dist_trigger);
+
+			if(_param_mc_dist_en.get() && !_dist_trigger && dist_trigger.aux1 > 0.5f)
+			{
+				_dist_trigger = false; // yby set false
+			}
+
+			float dist{0.0f};
+
+			if(_dist_trigger) {
+				_dist.update(dt, dist);
+				if(_param_mc_dist_en.get() & 1)
+				{
+					att_control(0) += dist;
+				}
+				if(_param_mc_dist_en.get() & 2)
+				{
+					att_control(1) += dist;
+				}
+				dist_hat(2) = dist; //recording
+			}
 
 
 			// run rate controller | for l1 , this is the base controller
@@ -584,6 +657,11 @@ MulticopterRateControl::Run()
 					}
 				}
 			}
+
+			rate_ndob_outputs_s ndob_output_{};
+			ndob_output_.timestamp = hrt_absolute_time();
+			dist_hat.copyTo(ndob_output_.values);
+			_rate_ndob_outputs_pub.publish(ndob_output_);
 
 			vehicle_thrust_setpoint.timestamp_sample = angular_velocity.timestamp_sample;
 			vehicle_thrust_setpoint.timestamp = hrt_absolute_time();

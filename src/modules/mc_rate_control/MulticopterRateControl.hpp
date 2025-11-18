@@ -32,8 +32,10 @@
  ****************************************************************************/
 
 #pragma once
+#include "disturbance_generator.hpp"
 
 #include <lib/rate_control/rate_control.hpp>
+#include <lib/rate_ndob/rate_ndob.hpp>
 #include <lib/matrix/matrix/math.hpp>
 #include <lib/perf/perf_counter.h>
 #include <px4_platform_common/defines.h>
@@ -59,6 +61,8 @@
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 #include <uORB/topics/vehicle_torque_setpoint.h>
+#include <uORB/topics/esc_status.h>
+#include <uORB/topics/rate_ndob_outputs.h>
 
 // Other topics for L1 adaptive
 #include <uORB/topics/hover_thrust_estimate.h>
@@ -106,6 +110,10 @@ private:
 
 	RateControl _rate_control; ///< class for rate control calculations
 
+	StepDistGenerator _dist;
+
+	RateNDOB _rate_ndob;
+
 	uORB::Subscription _battery_status_sub{ORB_ID(battery_status)};
 	uORB::Subscription _control_allocator_status_sub{ORB_ID(control_allocator_status)};
 	uORB::Subscription _manual_control_setpoint_sub{ORB_ID(manual_control_setpoint)};
@@ -114,6 +122,7 @@ private:
 	uORB::Subscription _vehicle_rates_setpoint_sub{ORB_ID(vehicle_rates_setpoint)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _adaptive_K_sub{ORB_ID(debug_vect)}; // Ye
+	uORB::Subscription _esc_status_sub{ORB_ID(esc_status)};
 
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 
@@ -124,6 +133,7 @@ private:
 	uORB::Publication<vehicle_rates_setpoint_s>	_vehicle_rates_setpoint_pub{ORB_ID(vehicle_rates_setpoint)};
 	uORB::Publication<vehicle_torque_setpoint_s>	_vehicle_torque_setpoint_pub;
 	uORB::Publication<vehicle_thrust_setpoint_s>	_vehicle_thrust_setpoint_pub;
+	uORB::Publication<rate_ndob_outputs_s>		_rate_ndob_outputs_pub{ORB_ID(rate_ndob_outputs)};
 
 	// subscribe to local position and vehicle_attitude
 	uORB::SubscriptionCallbackWorkItem _local_pos_sub{this, ORB_ID(vehicle_local_position)};	/**< vehicle local position */
@@ -144,6 +154,7 @@ private:
 
 	bool _landed{true};
 	bool _maybe_landed{true};
+	bool _dist_trigger{false};
 
 	hrt_abstime _last_run{0};
 
@@ -228,7 +239,15 @@ private:
 		(ParamFloat<px4::params::MC_L1_TOR_RATX>) _param_mc_l1_tor_ratx,
 		(ParamFloat<px4::params::MC_L1_TOR_RATY>) _param_mc_l1_tor_raty,
 
+		(ParamFloat<px4::params::MC_DOB_CUTOFF>) _param_mc_dob_cutoff,
+		(ParamFloat<px4::params::MC_DOB_K>) _param_mc_dob_k,
+		(ParamFloat<px4::params::MC_DIST_F>) _param_mc_dist_f,
+		(ParamFloat<px4::params::MC_DIST_T>) _param_mc_dist_t,
+		(ParamFloat<px4::params::MC_DIST_MAG>) _param_mc_dist_mag,
+
 		(ParamBool<px4::params::MC_BAT_SCALE_EN>) _param_mc_bat_scale_en,
+		(ParamInt<px4::params::MC_DIST_EN>) _param_mc_dist_en,
+		(ParamInt<px4::params::MC_DOB_EN>) _param_mc_dob_en,
 		// L1 parameters
 		(ParamBool<px4::params::MC_L1_EN>) _param_mc_l1_en,
 		(ParamBool<px4::params::MC_L1_CTRL_ON>) _param_mc_l1_ctrl_on,

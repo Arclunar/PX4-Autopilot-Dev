@@ -174,6 +174,7 @@ set(msg_files
 	QshellRetval.msg
 	RadioStatus.msg
 	RateCtrlStatus.msg
+	RateNdobOutputs.msg
 	RcChannels.msg
 	RcParameterMap.msg
 	RegisterExtComponentReply.msg

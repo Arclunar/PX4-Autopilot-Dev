@@ -1,6 +1,6 @@
 ############################################################################
 #
-#   Copyright (c) 2019 PX4 Development Team. All rights reserved.
+#   Copyright (c) 2025 Gordon Liang. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -31,19 +31,11 @@
 #
 ############################################################################
 
-px4_add_module(
-	MODULE modules__mc_rate_control
-	MAIN mc_rate_control
-	COMPILE_FLAGS
-		${MAX_CUSTOM_OPT_LEVEL}
-	SRCS
-		MulticopterRateControl.cpp
-		MulticopterRateControl.hpp
-		L1AdaptiveControl.cpp
-	DEPENDS
-		circuit_breaker
-		mathlib
-		RateControl
-		RateNDOB
-		px4_work_queue
-	)
+px4_add_library(RateNDOB
+	rate_ndob.hpp
+)
+target_compile_options(RateNDOB PRIVATE ${MAX_CUSTOM_OPT_LEVEL})
+target_include_directories(RateNDOB PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(RateNDOB PRIVATE mathlib)
+
+# px4_add_unit_gtest(SRC rate_control_test.cpp LINKLIBS RateControl)
